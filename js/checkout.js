@@ -232,18 +232,6 @@ G.boot(async (data) => {
               <input class="field" required name="customerName" placeholder="Nome" value="${G.esc(form.customerName)}" />
               <input class="field" required name="phone" placeholder="WhatsApp" value="${G.esc(form.phone)}" />
             </div>
-            ${
-              !me
-                ? `<p class="muted" style="margin-top:.75rem">Já tem conta? <a href="/conta.html?next=/checkout.html"><b>Entrar</b></a> para usar endereços salvos.</p>`
-                : (me.addresses || []).length
-                  ? `<div class="addr-picks">${me.addresses
-                      .map(
-                        (a) =>
-                          `<button type="button" class="addr-pick ${form.address === a.street && form.addressNumber === a.number ? "on" : ""}" data-aid="${a.id}"><b>${G.esc(a.label)}</b><span>${G.esc(a.street)}, ${G.esc(a.number)} · ${G.esc(a.neighborhood)}</span></button>`,
-                      )
-                      .join("")}</div>`
-                  : ""
-            }
             <h2 style="margin-top:1.25rem">Entrega</h2>
             <div class="seg" style="margin-top:.75rem">
               ${s.deliveryEnabled !== false ? `<button type="button" data-del="DELIVERY" class="${form.deliveryType === "DELIVERY" ? "on" : ""}">Entrega</button>` : ""}

@@ -59,7 +59,7 @@ G.boot((data) => {
         <b>${G.esc(G.getAddress()?.street || s.address || "Escolher endereço")}</b>
         <span>Entrega e retirada · ${s.hours || ""}</span>
       </div>
-      <a class="btn btn-sm btn-white" href="/conta.html#enderecos">Alterar</a>`;
+      <a class="btn btn-sm btn-white" href="/checkout.html">Alterar</a>`;
   }
 
   function renderCats() {

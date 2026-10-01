@@ -3,10 +3,6 @@ G.boot((data) => {
   const products = data.products || [];
   const ids = G.favIds();
   const list = products.filter((p) => ids.includes(p.id));
-  if (!G.getUser()?.token) {
-    el.innerHTML = `<div class="empty-bag"><p class="muted">Entre para guardar seus pratos favoritos</p><a class="btn btn-leaf" href="/conta.html?next=/favoritos.html">Entrar</a></div>`;
-    return;
-  }
   if (!list.length) {
     el.innerHTML = `<div class="empty-bag"><p class="muted">Você ainda não favoritou nenhum prato</p><a class="btn btn-leaf" href="/#cardapio">Ver cardápio</a></div>`;
     return;

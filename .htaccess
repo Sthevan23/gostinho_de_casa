@@ -25,7 +25,7 @@ DirectoryIndex index.html
   RewriteRule ^produto/?$ produto.html [L,QSA]
   RewriteRule ^pedido/?$ pedido.html [L,QSA]
   RewriteRule ^pedidos/?$ pedidos.html [L]
-  RewriteRule ^conta/?$ conta.html [L]
+  RewriteRule ^conta/?$ / [R=302,L]
   RewriteRule ^favoritos/?$ favoritos.html [L]
   RewriteRule ^marmitas/?$ /?categoria=caseiras [R=302,L,QSA]
   RewriteRule ^promocoes/?$ /?categoria=prato-da-semana [R=302,L,QSA]

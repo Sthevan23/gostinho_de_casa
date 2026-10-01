@@ -135,7 +135,11 @@ const G = (() => {
     renderChrome();
   }
   function favIds() {
-    return getUser()?.favorites || JSON.parse(localStorage.getItem("gostinho-favs") || "[]");
+    try {
+      return JSON.parse(localStorage.getItem("gostinho-favs") || "[]");
+    } catch {
+      return [];
+    }
   }
   function isFav(id) {
     return favIds().includes(id);
@@ -189,17 +193,12 @@ const G = (() => {
   }
 
   async function toggleFav(productId) {
-    const user = getUser();
-    if (!user?.token) {
-      toast("Entre na sua conta para favoritar");
-      location.href = "/conta.html?next=" + encodeURIComponent(location.pathname + location.search);
-      return false;
-    }
-    const out = await apiPost({ action: "toggle_favorite", productId });
-    const next = { ...user, favorites: out.favorited ? [...favIds().filter((x) => x !== productId), productId] : favIds().filter((x) => x !== productId) };
-    setUser(next);
-    toast(out.favorited ? "Salvo nos favoritos" : "Removido dos favoritos");
-    return out.favorited;
+    const ids = favIds();
+    const on = ids.includes(productId);
+    const next = on ? ids.filter((x) => x !== productId) : ids.concat(productId);
+    localStorage.setItem("gostinho-favs", JSON.stringify(next));
+    toast(on ? "Removido dos favoritos" : "Salvo nos favoritos");
+    return !on;
   }
 
   async function loadCatalog(force) {
@@ -340,9 +339,6 @@ const G = (() => {
               <strong>${esc(s.companyName || "Gostinho de Casa")}</strong>
               <small>Marmitas sob encomenda</small>
             </span>
-          </a>
-          <a class="icon-btn" href="/conta.html" aria-label="Conta">
-            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="7" r="3"/><path d="M4 17c1.2-2.5 3.4-3.8 6-3.8S14.8 14.5 16 17"/></svg>
           </a>
           <a class="icon-btn" href="/carrinho.html" aria-label="Sacola">
             <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h15l-1.4 8H8L6 7z"/><path d="M6 7 5 4H2"/><circle cx="9" cy="18.5" r="1.2"/><circle cx="16.5" cy="18.5" r="1.2"/></svg>
