@@ -23,7 +23,7 @@ G.boot((data) => {
     </div>`;
 
   const input = document.getElementById("q");
-  if (q) input.value = q;
+  if (q && input) input.value = q;
 
   function catSlug(p) {
     return p.category?.slug || cats.find((c) => c.id === p.categoryId)?.slug || "";
@@ -86,9 +86,11 @@ G.boot((data) => {
     G.bindAdds(list);
   }
 
-  input.addEventListener("input", (e) => {
-    q = e.target.value;
-    render();
-  });
+  if (input) {
+    input.addEventListener("input", (e) => {
+      q = e.target.value;
+      render();
+    });
+  }
   render();
 });

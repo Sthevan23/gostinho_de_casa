@@ -103,17 +103,41 @@ const G = (() => {
 
   async function loadCatalog(force) {
     if (catalog && !force) return catalog;
+    if (force) catalogPromise = null;
     if (catalogPromise && !force) return catalogPromise;
     catalogPromise = (async () => {
-      try {
-        const res = await fetch(API + "?t=" + Date.now(), { cache: "no-store" });
-        if (res.ok) {
-          catalog = await res.json();
-          return catalog;
+      if (!catalog && window.GOSTINHO_CATALOG && Array.isArray(window.GOSTINHO_CATALOG.products)) {
+        catalog = window.GOSTINHO_CATALOG;
+      }
+      const tryUrl = async (url, ms) => {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), ms);
+        try {
+          const res = await fetch(url, { cache: "no-store", signal: ctrl.signal });
+          if (!res.ok) return null;
+          const data = await res.json();
+          if (data && Array.isArray(data.products)) return data;
+        } catch (_) {
+        } finally {
+          clearTimeout(timer);
         }
-      } catch {}
-      const res = await fetch("/catalog.json?t=" + Date.now(), { cache: "no-store" });
-      catalog = await res.json();
+        return null;
+      };
+      const fresh =
+        (await tryUrl("catalog.json?t=" + Date.now(), 4000)) ||
+        (await tryUrl("/catalog.json?t=" + Date.now(), 4000)) ||
+        (await tryUrl(API + "?t=" + Date.now(), 4000));
+      if (fresh) catalog = fresh;
+      if (!catalog) {
+        catalog = {
+          settings: { companyName: "Gostinho de Casa" },
+          categories: [],
+          products: [],
+          promotions: [],
+          reviews: [],
+          zones: [],
+        };
+      }
       return catalog;
     })();
     return catalogPromise;
@@ -178,8 +202,7 @@ const G = (() => {
   }
 
   function renderChrome() {
-    const data = catalog;
-    if (!data) return;
+    const data = catalog || { settings: {} };
     const s = data.settings || {};
     const cart = loadCart();
     const { count, subtotal } = cartTotals(cart.items);
@@ -270,10 +293,23 @@ const G = (() => {
     window.addEventListener("scroll", () => {
       document.querySelector("header.site")?.classList.toggle("scrolled", window.scrollY > 8);
     });
-    await loadCatalog();
+    document.body.dataset.page = pageKind();
+    if (window.GOSTINHO_CATALOG && Array.isArray(window.GOSTINHO_CATALOG.products)) {
+      catalog = window.GOSTINHO_CATALOG;
+      renderChrome();
+    }
+    try {
+      await loadCatalog(true);
+    } catch (err) {
+      console.error(err);
+    }
     renderChrome();
     document.body.dataset.page = pageKind();
-    if (pageFn) await pageFn(catalog);
+    try {
+      if (pageFn) await pageFn(catalog);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   return {

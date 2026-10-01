@@ -24,9 +24,9 @@ if ($method === 'GET' && isset($_GET['ping'])) {
   exit;
 }
 
-if ($method === 'GET' && !isset($_GET['full']) && $action !== 'full' && $action !== 'order') {
+if ($method === 'GET' && !isset($_GET['full']) && $action !== 'full' && $action !== 'order' && !isset($_GET['rebuild'])) {
   $catalogFile = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'catalog.json';
-  if (is_file($catalogFile) && !isset($_GET['rebuild'])) {
+  if (is_file($catalogFile)) {
     $raw = @file_get_contents($catalogFile);
     if (is_string($raw) && $raw !== '' && strpos($raw, '"products"') !== false) {
       header('Cache-Control: no-store, max-age=0');
@@ -34,6 +34,11 @@ if ($method === 'GET' && !isset($_GET['full']) && $action !== 'full' && $action 
       exit;
     }
   }
+  require_once __DIR__ . '/seed_data.php';
+  $fallback = gostinho_default_data();
+  unset($fallback['settings']['adminEmail'], $fallback['settings']['adminPassword']);
+  header('Cache-Control: no-store, max-age=0');
+  json_out($fallback);
 }
 
 require_once __DIR__ . '/store.php';
