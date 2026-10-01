@@ -128,6 +128,11 @@ body[data-page="item"] .cartbar { display: none !important; }
 .store-meta .star { color: var(--gold); }
 
 .sec-title { font-size: 1.35rem; margin: 1.4rem 0 .85rem; }
+#cardapio { scroll-margin-top: 6.5rem; }
+#cardapio .search-pill {
+  background: #fff; color: var(--muted); border: 1px solid var(--line); margin: .15rem 0 1rem;
+}
+#cardapio .search-pill input { color: var(--ink); }
 
 .banners { display: none; }
 .banner { display: none; }
@@ -137,7 +142,9 @@ body[data-page="item"] .cartbar { display: none !important; }
   flex: 0 0 auto; width: auto; text-align: center;
   background: var(--white); border-radius: 999px; padding: .45rem .85rem .45rem .45rem;
   display: flex; align-items: center; gap: .5rem; border: 1px solid var(--line);
+  font: inherit; color: inherit;
 }
+.cat-circle.on { border-color: var(--leaf); background: #e7f0ea; }
 .cat-circle img {
   width: 2rem; height: 2rem; border-radius: 999px; object-fit: cover; object-position: center 32%;
   background: var(--sand); border: 0;

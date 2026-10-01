@@ -305,6 +305,7 @@ const G = (() => {
   function pageKind() {
     const p = (location.pathname || "/").toLowerCase();
     if (p.includes("produto")) return "item";
+    if (location.hash === "#cardapio") return "cardapio";
     if (p.includes("cardapio") || p.includes("marmitas") || p.includes("promocoes") || p.includes("buscar")) return "cardapio";
     if (p.includes("carrinho") || p.includes("checkout")) return "sacola";
     if (p.includes("pedido")) return "pedidos";
@@ -351,7 +352,7 @@ const G = (() => {
         ${
           kind === "inicio"
             ? `<div class="header-search">
-          <a class="search-pill" href="/cardapio.html">
+          <a class="search-pill js-to-menu" href="#cardapio">
             <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6"/><path d="m16 16-3.5-3.5"/></svg>
             <span>Buscar marmitas, combos...</span>
           </a>
@@ -396,7 +397,7 @@ const G = (() => {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>
         Início
       </a>
-      <a class="${kind === "cardapio" || kind === "item" ? "on" : ""}" href="/cardapio.html">
+      <a class="${kind === "cardapio" || kind === "item" ? "on" : ""} js-to-menu" href="/#cardapio">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
         Cardápio
       </a>
@@ -420,11 +421,34 @@ const G = (() => {
         bar.innerHTML = `<span class="bag"><span class="count">${count}</span> Pedido</span><span>${formatBRL(subtotal)}</span>`;
       } else bar.classList.remove("show");
     }
+    function stayOnMenu(ev) {
+      const path = (location.pathname || "/").toLowerCase();
+      const onHome = path === "/" || path.endsWith("/index.html") || path.includes("cardapio") || path.includes("buscar");
+      if (!onHome) return;
+      ev.preventDefault();
+      if (location.hash !== "#cardapio") location.hash = "cardapio";
+      document.getElementById("cardapio")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    header?.querySelectorAll(".js-to-menu").forEach((el) => el.addEventListener("click", stayOnMenu));
+    tab?.querySelectorAll(".js-to-menu").forEach((el) => el.addEventListener("click", stayOnMenu));
+    tab?.querySelector('a[href="/"]')?.addEventListener("click", (ev) => {
+      const path = (location.pathname || "/").toLowerCase();
+      if (path !== "/" && !path.endsWith("/index.html")) return;
+      ev.preventDefault();
+      if (location.hash || location.search) history.replaceState({}, "", "/");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      document.body.dataset.page = "inicio";
+      renderChrome();
+    });
   }
 
   async function boot(pageFn) {
     window.addEventListener("scroll", () => {
       document.querySelector("header.site")?.classList.toggle("scrolled", window.scrollY > 8);
+    });
+    window.addEventListener("hashchange", () => {
+      document.body.dataset.page = pageKind();
+      renderChrome();
     });
     document.body.dataset.page = pageKind();
     if (window.GOSTINHO_CATALOG && Array.isArray(window.GOSTINHO_CATALOG.products)) {

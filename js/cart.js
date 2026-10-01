@@ -10,7 +10,7 @@ G.boot((data) => {
     if (!count) {
       el.innerHTML = `<div class="empty-bag">
         <p class="muted">Sua sacola está vazia</p>
-        <a class="btn btn-leaf" href="/cardapio.html">Ver cardápio</a>
+        <a class="btn btn-leaf" href="/#cardapio">Ver cardápio</a>
       </div>`;
       return;
     }

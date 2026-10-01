@@ -16,7 +16,7 @@ G.boot(async (data) => {
   }
   if (!orders.length) {
     const last = localStorage.getItem("gostinho-last-order");
-    el.innerHTML = `<div class="empty-bag"><p class="muted">Você ainda não fez um pedido</p>${last ? `<a class="btn btn-white" href="/pedido.html?id=${encodeURIComponent(last)}">Ver último pedido</a>` : ""}<a class="btn btn-leaf" href="/cardapio.html">Ver cardápio</a></div>`;
+    el.innerHTML = `<div class="empty-bag"><p class="muted">Você ainda não fez um pedido</p>${last ? `<a class="btn btn-white" href="/pedido.html?id=${encodeURIComponent(last)}">Ver último pedido</a>` : ""}<a class="btn btn-leaf" href="/#cardapio">Ver cardápio</a></div>`;
     return;
   }
   el.innerHTML = `<h1 style="font-size:1.25rem;margin:.5rem 0 1rem">Meus pedidos</h1>${orders

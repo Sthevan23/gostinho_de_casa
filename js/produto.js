@@ -28,7 +28,7 @@ G.boot((data) => {
     document.getElementById("page").innerHTML = `
       <div class="item-sheet">
         <div class="item-cover">
-          <a class="back-fab" href="/cardapio.html" aria-label="Voltar">←</a>
+          <a class="back-fab" href="/#cardapio" aria-label="Voltar">←</a>
           <button class="back-fab fav-fab ${G.isFav(p.id) ? "on" : ""}" type="button" id="fav" style="left:auto;right:.75rem">${G.isFav(p.id) ? "♥" : "♡"}</button>
           <img src="${p.image}" alt="${G.esc(p.name)}" />
         </div>

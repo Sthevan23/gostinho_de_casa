@@ -17,8 +17,8 @@ DirectoryIndex index.html
   RewriteCond %{THE_REQUEST} /index\.html[\s?] [NC]
   RewriteRule ^index\.html$ / [R=301,L]
 
-  RewriteRule ^cardapio/?$ cardapio.html [L]
-  RewriteRule ^buscar/?$ buscar.html [L]
+  RewriteRule ^cardapio/?$ / [R=302,L,QSA]
+  RewriteRule ^buscar/?$ / [R=302,L,QSA]
   RewriteRule ^carrinho/?$ carrinho.html [L]
   RewriteRule ^checkout/?$ checkout.html [L]
   RewriteRule ^produto/([A-Za-z0-9_-]+)/?$ produto.html?id=$1 [L,QSA]
@@ -27,8 +27,8 @@ DirectoryIndex index.html
   RewriteRule ^pedidos/?$ pedidos.html [L]
   RewriteRule ^conta/?$ conta.html [L]
   RewriteRule ^favoritos/?$ favoritos.html [L]
-  RewriteRule ^marmitas/?$ cardapio.html?categoria=caseiras [L,QSA]
-  RewriteRule ^promocoes/?$ cardapio.html?categoria=prato-da-semana [L,QSA]
+  RewriteRule ^marmitas/?$ /?categoria=caseiras [R=302,L,QSA]
+  RewriteRule ^promocoes/?$ /?categoria=prato-da-semana [R=302,L,QSA]
   RewriteRule ^login/?$ admin/login.html [L]
   RewriteRule ^admin/?$ admin/index.html [L]
 </IfModule>
