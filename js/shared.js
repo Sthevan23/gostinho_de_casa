@@ -256,21 +256,18 @@ const G = (() => {
 
   function productCard(p) {
     const price = priceOf(p);
-    const needs = (p.sizes && p.sizes.length) || (p.extras && p.extras.length);
     const href = productHref(p);
-    const add = needs
-      ? `<a class="add" href="${href}" aria-label="Ver produto">+</a>`
-      : `<button class="add js-add" type="button" data-id="${p.id}" aria-label="Adicionar">+</button>`;
+    const add = `<button class="add js-add" type="button" data-id="${p.id}" aria-label="Adicionar">+</button>`;
     return `<article class="dish">
-      <div class="dish-media">
-        <a href="${href}"><img src="${p.image || "/logo.png"}" alt="${esc(p.name)}" loading="lazy" /></a>
+      <a class="dish-media" href="${href}">
+        <img src="${p.image || "/logo.png"}" alt="${esc(p.name)}" loading="lazy" />
         ${p.promotional ? '<span class="tag">Promo</span>' : ""}
-        ${p.stock <= 0 ? "" : add}
-      </div>
+      </a>
       <a class="dish-info" href="${href}">
         <h3>${esc(p.name)}</h3>
         <p class="price">${p.promotional && p.promoPrice != null ? `<span class="old">${formatBRL(p.price)}</span>` : ""}${formatBRL(price)}</p>
       </a>
+      ${p.stock <= 0 ? "" : add}
     </article>`;
   }
 
@@ -279,6 +276,7 @@ const G = (() => {
       btn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
         const p = products.find((x) => x.id === btn.dataset.id);
         if (!p || p.stock <= 0) return;
         addItem({
@@ -328,6 +326,7 @@ const G = (() => {
     const s = data.settings || {};
     const cart = loadCart();
     const { count, subtotal } = cartTotals(cart.items);
+    document.body.classList.toggle("has-bag", count > 0);
     const days = s.minAdvanceDays || 1;
     const kind = pageKind();
     const header = document.getElementById("site-header");
@@ -430,21 +429,15 @@ const G = (() => {
     document.body.dataset.page = pageKind();
     if (window.GOSTINHO_CATALOG && Array.isArray(window.GOSTINHO_CATALOG.products)) {
       catalog = window.GOSTINHO_CATALOG;
-      renderChrome();
-    }
-    try {
-      await loadCatalog(true);
-    } catch (err) {
-      console.error(err);
     }
     renderChrome();
-    document.body.dataset.page = pageKind();
-    refreshUser().catch(() => {});
     try {
-      if (pageFn) await pageFn(catalog);
+      if (pageFn) await pageFn(catalog || (await loadCatalog(false)));
     } catch (err) {
       console.error(err);
     }
+    loadCatalog(true).then(() => renderChrome()).catch((err) => console.error(err));
+    refreshUser().catch(() => {});
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }

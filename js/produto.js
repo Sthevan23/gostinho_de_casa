@@ -109,7 +109,13 @@ G.boot((data) => {
         extras,
         notes,
       });
-      location.href = "/carrinho.html";
+      const btn = document.getElementById("add");
+      if (btn) {
+        btn.textContent = "Adicionado";
+        setTimeout(() => {
+          btn.textContent = "Adicionar ao carrinho — " + G.formatBRL(unit * qty);
+        }, 900);
+      }
     });
   }
   render();
