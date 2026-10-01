@@ -1,5 +1,5 @@
-const CACHE = "gostinho-v8";
-const PRECACHE = ["/", "/offline.html", "/style.css?v=8", "/logo.png"];
+const CACHE = "gostinho-v9";
+const PRECACHE = ["/", "/offline.html", "/style.css?v=9", "/logo.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));

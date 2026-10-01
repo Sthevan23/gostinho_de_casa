@@ -259,15 +259,15 @@ const G = (() => {
     const href = productHref(p);
     const add = `<button class="add js-add" type="button" data-id="${p.id}" aria-label="Adicionar">+</button>`;
     return `<article class="dish">
-      <a class="dish-media" href="${href}">
-        <img src="${p.image || "/logo.png"}" alt="${esc(p.name)}" loading="lazy" />
+      <div class="dish-media">
+        <a href="${href}" tabindex="-1"><img src="${p.image || "/logo.png"}" alt="${esc(p.name)}" loading="lazy" /></a>
         ${p.promotional ? '<span class="tag">Promo</span>' : ""}
-      </a>
+        ${p.stock <= 0 ? "" : add}
+      </div>
       <a class="dish-info" href="${href}">
         <h3>${esc(p.name)}</h3>
         <p class="price">${p.promotional && p.promoPrice != null ? `<span class="old">${formatBRL(p.price)}</span>` : ""}${formatBRL(price)}</p>
       </a>
-      ${p.stock <= 0 ? "" : add}
     </article>`;
   }
 
