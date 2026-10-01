@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Painel Admin — Gostinho de Casa</title>
+  <link rel="icon" href="/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="admin.css" />
+  <script>
+    if (sessionStorage.getItem("admin_logged") !== "true") location.replace("login.html");
+  </script>
+</head>
+<body>
+  <div class="sidebar-backdrop" id="backdrop"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar__header">
+      <img src="/logo.png" alt="" />
+      <span>Gostinho</span>
+    </div>
+    <nav class="sidebar__nav">
+      <a href="#" class="sidebar__link active" data-page="dashboard"><i class="fas fa-chart-pie"></i> Dashboard</a>
+      <a href="#" class="sidebar__link" data-page="pedidos"><i class="fas fa-shopping-bag"></i> Pedidos <span class="sidebar__badge" id="badge-new" hidden>0</span></a>
+      <a href="#" class="sidebar__link" data-page="produtos"><i class="fas fa-utensils"></i> Produtos</a>
+      <a href="#" class="sidebar__link" data-page="estoque"><i class="fas fa-boxes-stacked"></i> Estoque <span class="sidebar__badge" id="badge-stock" hidden>0</span></a>
+      <a href="#" class="sidebar__link" data-page="categorias"><i class="fas fa-tags"></i> Categorias</a>
+      <a href="#" class="sidebar__link" data-page="promocoes"><i class="fas fa-percent"></i> Promoções</a>
+      <a href="#" class="sidebar__link" data-page="cupons"><i class="fas fa-ticket"></i> Cupons</a>
+      <a href="#" class="sidebar__link" data-page="entregas"><i class="fas fa-motorcycle"></i> Entregas</a>
+      <a href="#" class="sidebar__link" data-page="financeiro"><i class="fas fa-wallet"></i> Financeiro</a>
+      <a href="#" class="sidebar__link" data-page="config"><i class="fas fa-cog"></i> Configurações</a>
+    </nav>
+    <div class="sidebar__footer">
+      <a href="/" class="sidebar__link" target="_blank"><i class="fas fa-external-link-alt"></i> Ver site</a>
+      <a href="#" class="sidebar__link" id="logout"><i class="fas fa-sign-out-alt"></i> Sair</a>
+    </div>
+  </aside>
+
+  <main class="admin-main">
+    <header class="admin-header no-print">
+      <button class="sidebar-toggle" id="menu-btn" type="button" aria-label="Menu"><i class="fas fa-bars"></i></button>
+      <h1 id="page-title">Dashboard</h1>
+      <span id="admin-email" style="font-size:.8rem;color:var(--muted)"></span>
+    </header>
+
+    <section class="admin-page active" id="page-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-card__icon" style="background:#e3f2fd;color:#2563eb"><i class="fas fa-bell"></i></div><div><span class="stat-card__label">Novos pedidos</span><strong class="stat-card__value" id="stat-new">0</strong></div></div>
+        <div class="stat-card"><div class="stat-card__icon" style="background:#fff3e0;color:#d97706"><i class="fas fa-clock"></i></div><div><span class="stat-card__label">Em andamento</span><strong class="stat-card__value" id="stat-open">0</strong></div></div>
+        <div class="stat-card"><div class="stat-card__icon" style="background:#e8f5e9;color:#2d6a4f"><i class="fas fa-dollar-sign"></i></div><div><span class="stat-card__label">Vendas hoje</span><strong class="stat-card__value" id="stat-today">R$ 0</strong></div></div>
+        <div class="stat-card"><div class="stat-card__icon" style="background:#fce4ec;color:#c2185b"><i class="fas fa-utensils"></i></div><div><span class="stat-card__label">Produtos ativos</span><strong class="stat-card__value" id="stat-prods">0</strong></div></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:12px">Últimos pedidos</h3>
+        <div id="dash-orders"></div>
+      </div>
+    </section>
+
+    <section class="admin-page" id="page-pedidos">
+      <div class="toolbar no-print">
+        <input class="form-group" id="order-q" placeholder="Buscar nome, telefone ou nº" style="margin:0;min-width:220px;padding:10px 14px;border:1.5px solid #e5ddd3;border-radius:10px" />
+        <button class="btn btn-ghost btn-sm" type="button" id="reload">Atualizar</button>
+      </div>
+      <div class="kanban" id="kanban"></div>
+    </section>
+
+    <section class="admin-page" id="page-produtos">
+      <div class="toolbar">
+        <h2>Cardápio</h2>
+        <button class="btn btn-primary" type="button" id="new-product"><i class="fas fa-plus"></i> Novo produto</button>
+      </div>
+      <div class="card" style="overflow:auto"><table class="data" id="tbl-products"></table></div>
+    </section>
+
+    <section class="admin-page" id="page-estoque">
+      <div class="card" style="overflow:auto"><table class="data" id="tbl-stock"></table></div>
+    </section>
+
+    <section class="admin-page" id="page-categorias">
+      <div class="toolbar">
+        <h2>Categorias</h2>
+        <button class="btn btn-primary" type="button" id="new-cat"><i class="fas fa-plus"></i> Nova</button>
+      </div>
+      <div id="cats-list"></div>
+    </section>
+
+    <section class="admin-page" id="page-promocoes">
+      <div class="toolbar">
+        <h2>Promoções da home</h2>
+        <button class="btn btn-primary" type="button" id="new-promo"><i class="fas fa-plus"></i> Nova</button>
+      </div>
+      <div id="promos-list"></div>
+    </section>
+
+    <section class="admin-page" id="page-cupons">
+      <div class="toolbar">
+        <h2>Cupons</h2>
+        <button class="btn btn-primary" type="button" id="new-coupon"><i class="fas fa-plus"></i> Novo</button>
+      </div>
+      <div class="card" style="overflow:auto"><table class="data" id="tbl-coupons"></table></div>
+    </section>
+
+    <section class="admin-page" id="page-entregas">
+      <div class="toolbar">
+        <h2>Bairros e taxas</h2>
+        <button class="btn btn-primary" type="button" id="new-zone"><i class="fas fa-plus"></i> Bairro</button>
+      </div>
+      <div id="zones-list"></div>
+      <div class="card" style="margin-top:16px">
+        <h3 style="margin-bottom:12px">Adicionais globais</h3>
+        <div id="extras-list"></div>
+        <button class="btn btn-ghost btn-sm" type="button" id="new-extra" style="margin-top:8px">+ Adicional</button>
+      </div>
+    </section>
+
+    <section class="admin-page" id="page-financeiro">
+      <div class="stats-grid" id="fin-stats"></div>
+      <div class="toolbar">
+        <h2>Lançamentos</h2>
+        <button class="btn btn-primary" type="button" id="new-fin"><i class="fas fa-plus"></i> Despesa / receita</button>
+      </div>
+      <div class="card" style="overflow:auto"><table class="data" id="tbl-finance"></table></div>
+    </section>
+
+    <section class="admin-page" id="page-config">
+      <form class="card" id="form-config" style="max-width:640px"></form>
+    </section>
+  </main>
+
+  <div class="modal-bg" id="modal-bg">
+    <div class="modal" id="modal"></div>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script src="admin.js"></script>
+</body>
+</html>
