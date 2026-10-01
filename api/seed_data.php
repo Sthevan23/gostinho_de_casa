@@ -5,9 +5,10 @@ function gostinho_default_data(): array {
   $foto = fn(int $n) => '/marmitas/foto-' . str_pad((string) $n, 2, '0', STR_PAD_LEFT) . '.jpg';
 
   $extras = [
-    ['id' => 'ex-ovo', 'name' => 'Ovo extra', 'price' => 3, 'active' => true],
+    ['id' => 'ex-ovo', 'name' => 'Ovo extra', 'price' => 2, 'active' => true],
     ['id' => 'ex-arroz', 'name' => 'Arroz extra', 'price' => 4, 'active' => true],
-    ['id' => 'ex-batata', 'name' => 'Batata doce extra', 'price' => 5, 'active' => true],
+    ['id' => 'ex-batata', 'name' => 'Batata frita', 'price' => 5, 'active' => true],
+    ['id' => 'ex-carne', 'name' => 'Carne extra', 'price' => 7, 'active' => true],
     ['id' => 'ex-queijo', 'name' => 'Queijo', 'price' => 4.5, 'active' => true],
     ['id' => 'ex-molho', 'name' => 'Molho extra', 'price' => 2.5, 'active' => true],
     ['id' => 'ex-salada', 'name' => 'Salada extra', 'price' => 4, 'active' => true],
@@ -65,6 +66,14 @@ function gostinho_default_data(): array {
       'pickupEnabled' => true,
       'minOrderValue' => 0,
       'minAdvanceDays' => 1,
+      'freeDeliveryMin' => 80,
+      'deliveryMode' => 'neighborhood',
+      'fixedDeliveryFee' => 8,
+      'loyaltyEnabled' => true,
+      'loyaltyPerReal' => 1,
+      'loyaltyRedeemPoints' => 500,
+      'loyaltyRedeemValue' => 10,
+      'pixKey' => '11988887777',
       'adminEmail' => 'admin@gostinhodecasa.com',
       'adminPassword' => 'admin123',
     ],
@@ -81,6 +90,8 @@ function gostinho_default_data(): array {
     'coupons' => [
       ['id' => 'c-bemvindo', 'code' => 'BEMVINDO10', 'type' => 'percent', 'value' => 10, 'minOrder' => 40, 'maxUses' => 100, 'usedCount' => 0, 'expiresAt' => '2026-12-31', 'active' => true],
       ['id' => 'c-frete', 'code' => 'FRETE5', 'type' => 'fixed', 'value' => 5, 'minOrder' => 50, 'maxUses' => 200, 'usedCount' => 0, 'expiresAt' => null, 'active' => true],
+      ['id' => 'c-gostinho10', 'code' => 'GOSTINHO10', 'type' => 'percent', 'value' => 10, 'minOrder' => 40, 'maxUses' => 200, 'usedCount' => 0, 'expiresAt' => '2026-12-31', 'active' => true],
+      ['id' => 'c-primeira', 'code' => 'PRIMEIRACOMPRA', 'type' => 'fixed', 'value' => 10, 'minOrder' => 30, 'maxUses' => 500, 'usedCount' => 0, 'expiresAt' => '2026-12-31', 'active' => true],
     ],
     'promotions' => [
       ['id' => 'promo-combo', 'name' => 'Combo 5 marmitas por R$ 99,90', 'description' => 'Monte 5 marmitas da semana e economize.', 'type' => 'combo', 'value' => 99.9, 'image' => $foto(22), 'active' => true],

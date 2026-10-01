@@ -29,8 +29,11 @@
       <a href="#" class="sidebar__link" data-page="categorias"><i class="fas fa-tags"></i> Categorias</a>
       <a href="#" class="sidebar__link" data-page="promocoes"><i class="fas fa-percent"></i> Promoções</a>
       <a href="#" class="sidebar__link" data-page="cupons"><i class="fas fa-ticket"></i> Cupons</a>
-      <a href="#" class="sidebar__link" data-page="entregas"><i class="fas fa-motorcycle"></i> Entregas</a>
+      <a href="#" class="sidebar__link" data-page="clientes"><i class="fas fa-users"></i> Clientes</a>
+      <a href="#" class="sidebar__link" data-page="entregadores"><i class="fas fa-motorcycle"></i> Entregadores</a>
+      <a href="#" class="sidebar__link" data-page="entregas"><i class="fas fa-map-marker-alt"></i> Taxas de entrega</a>
       <a href="#" class="sidebar__link" data-page="financeiro"><i class="fas fa-wallet"></i> Financeiro</a>
+      <a href="#" class="sidebar__link" data-page="relatorios"><i class="fas fa-chart-line"></i> Relatórios</a>
       <a href="#" class="sidebar__link" data-page="config"><i class="fas fa-cog"></i> Configurações</a>
     </nav>
     <div class="sidebar__footer">
@@ -48,10 +51,11 @@
 
     <section class="admin-page active" id="page-dashboard">
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-card__icon" style="background:#e3f2fd;color:#2563eb"><i class="fas fa-bell"></i></div><div><span class="stat-card__label">Novos pedidos</span><strong class="stat-card__value" id="stat-new">0</strong></div></div>
-        <div class="stat-card"><div class="stat-card__icon" style="background:#fff3e0;color:#d97706"><i class="fas fa-clock"></i></div><div><span class="stat-card__label">Em andamento</span><strong class="stat-card__value" id="stat-open">0</strong></div></div>
-        <div class="stat-card"><div class="stat-card__icon" style="background:#e8f5e9;color:#2d6a4f"><i class="fas fa-dollar-sign"></i></div><div><span class="stat-card__label">Vendas hoje</span><strong class="stat-card__value" id="stat-today">R$ 0</strong></div></div>
-        <div class="stat-card"><div class="stat-card__icon" style="background:#fce4ec;color:#c2185b"><i class="fas fa-utensils"></i></div><div><span class="stat-card__label">Produtos ativos</span><strong class="stat-card__value" id="stat-prods">0</strong></div></div>
+        <div class="stat-card"><div class="stat-card__icon" style="background:#e3f2fd;color:#2563eb"><i class="fas fa-bell"></i></div><div><span class="stat-card__label">Pedidos hoje</span><strong class="stat-card__value" id="stat-new">0</strong></div></div>
+        <div class="stat-card"><div class="stat-card__icon" style="background:#e8f5e9;color:#2d6a4f"><i class="fas fa-dollar-sign"></i></div><div><span class="stat-card__label">Faturamento</span><strong class="stat-card__value" id="stat-today">R$ 0</strong></div></div>
+        <div class="stat-card"><div class="stat-card__icon" style="background:#fff8e1;color:#c4a574"><i class="fas fa-receipt"></i></div><div><span class="stat-card__label">Ticket médio</span><strong class="stat-card__value" id="stat-ticket">R$ 0</strong></div></div>
+        <div class="stat-card"><div class="stat-card__icon" style="background:#fce4ec;color:#c2185b"><i class="fas fa-user"></i></div><div><span class="stat-card__label">Clientes</span><strong class="stat-card__value" id="stat-prods">0</strong></div></div>
+        <div class="stat-card"><div class="stat-card__icon" style="background:#fff3e0;color:#d97706"><i class="fas fa-clock"></i></div><div><span class="stat-card__label">Pendentes</span><strong class="stat-card__value" id="stat-open">0</strong></div></div>
       </div>
       <div class="card">
         <h3 style="margin-bottom:12px">Últimos pedidos</h3>
@@ -77,6 +81,11 @@
 
     <section class="admin-page" id="page-estoque">
       <div class="card" style="overflow:auto"><table class="data" id="tbl-stock"></table></div>
+      <div class="toolbar" style="margin-top:16px">
+        <h2>Insumos</h2>
+        <button class="btn btn-primary" type="button" id="new-stock-item"><i class="fas fa-plus"></i> Insumo</button>
+      </div>
+      <div class="card" style="overflow:auto"><table class="data" id="tbl-stock-items"></table></div>
     </section>
 
     <section class="admin-page" id="page-categorias">
@@ -116,6 +125,28 @@
       </div>
     </section>
 
+    <section class="admin-page" id="page-clientes">
+      <div class="card" style="overflow:auto"><table class="data" id="tbl-customers"></table></div>
+    </section>
+
+    <section class="admin-page" id="page-entregadores">
+      <div class="toolbar">
+        <h2>Entregadores</h2>
+        <button class="btn btn-primary" type="button" id="new-driver"><i class="fas fa-plus"></i> Novo</button>
+      </div>
+      <div id="drivers-list"></div>
+    </section>
+
+    <section class="admin-page" id="page-relatorios">
+      <div class="toolbar">
+        <input type="date" id="rep-from" />
+        <input type="date" id="rep-to" />
+        <button class="btn btn-primary btn-sm" type="button" id="rep-go">Filtrar</button>
+      </div>
+      <div class="stats-grid" id="rep-stats"></div>
+      <div class="card" id="rep-body" style="margin-top:12px"></div>
+    </section>
+
     <section class="admin-page" id="page-financeiro">
       <div class="stats-grid" id="fin-stats"></div>
       <div class="toolbar">
@@ -134,6 +165,6 @@
     <div class="modal" id="modal"></div>
   </div>
   <div class="toast" id="toast"></div>
-  <script src="admin.js"></script>
+  <script src="admin.js?v=7"></script>
 </body>
 </html>

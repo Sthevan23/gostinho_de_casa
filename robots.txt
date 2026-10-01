@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Sitemap: https://gostinhodecasa.seuproximosite.com.br/sitemap.xml

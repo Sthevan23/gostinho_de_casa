@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/seed_data.php';
+require_once __DIR__ . '/platform.php';
 
 function gostinho_json_enc($v): string {
   return json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -166,11 +167,15 @@ SQL;
   foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
     if ($stmt !== '') $pdo->exec($stmt);
   }
+  gostinho_ensure_platform($pdo);
 }
 
 function gostinho_seed_if_empty(PDO $pdo): void {
   $count = (int) $pdo->query('SELECT COUNT(*) FROM products')->fetchColumn();
-  if ($count > 0) return;
+  if ($count > 0) {
+    gostinho_seed_platform($pdo);
+    return;
+  }
 
   $data = gostinho_default_data();
   $pdo->beginTransaction();
@@ -188,6 +193,7 @@ function gostinho_seed_if_empty(PDO $pdo): void {
     $pdo->rollBack();
     throw $e;
   }
+  gostinho_seed_platform($pdo);
   gostinho_write_catalog($pdo);
 }
 
@@ -434,6 +440,11 @@ function gostinho_load_all(PDO $pdo, string $mode = 'public'): array {
   if ($mode === 'full') {
     $out['orders'] = gostinho_load_orders($pdo);
     $out['finance'] = gostinho_load_finance($pdo);
+    $out['customers'] = gostinho_load_customers_admin($pdo);
+    $out['drivers'] = gostinho_load_drivers($pdo);
+    $out['stockItems'] = gostinho_load_stock_items($pdo);
+    $out['notifications'] = gostinho_admin_notifications($pdo);
+    $out['reports'] = gostinho_reports($pdo);
     $out['settings']['adminEmail'] = $settings['adminEmail'] ?? '';
     unset($out['settings']['adminPassword']);
     $out['settings']['adminPasswordSet'] = true;
@@ -502,6 +513,13 @@ function gostinho_load_orders(PDO $pdo): array {
       'addressNumber' => $row['address_number'],
       'complement' => $row['complement'],
       'neighborhood' => $row['neighborhood'],
+      'cep' => $row['cep'] ?? '',
+      'city' => $row['city'] ?? '',
+      'state' => $row['state'] ?? '',
+      'addressLabel' => $row['address_label'] ?? '',
+      'reference' => $row['reference_note'] ?? '',
+      'customerId' => $row['customer_id'] ?? '',
+      'driverId' => $row['driver_id'] ?? '',
       'deliveryType' => $row['delivery_type'],
       'deliveryFee' => (float) $row['delivery_fee'],
       'paymentMethod' => $row['payment_method'],
@@ -554,6 +572,7 @@ function gostinho_pay_label(string $m): string {
     'CASH' => 'Dinheiro',
     'CARD' => 'Cartão',
     'CARD_DELIVERY' => 'Cartão na entrega',
+    'CARD_ONLINE' => 'Cartão online',
   ][$m] ?? $m;
 }
 
@@ -623,6 +642,12 @@ function gostinho_create_order(PDO $pdo, array $body): array {
 
   $name = trim((string) ($body['customerName'] ?? ''));
   $phone = preg_replace('/\D+/', '', (string) ($body['phone'] ?? ''));
+  $token = (string) ($_SERVER['HTTP_X_CUSTOMER_TOKEN'] ?? ($body['token'] ?? ''));
+  $customer = gostinho_find_customer_by_token($pdo, $token);
+  if ($customer) {
+    if ($name === '') $name = $customer['name'];
+    if (strlen($phone) < 10) $phone = $customer['phone'];
+  }
   if ($name === '' || strlen($phone) < 10) {
     throw new InvalidArgumentException('Informe nome e WhatsApp.');
   }
@@ -633,9 +658,17 @@ function gostinho_create_order(PDO $pdo, array $body): array {
     $zones[$row['name']] = (float) $row['price'];
   }
   $neighborhood = (string) ($body['neighborhood'] ?? '');
-  $deliveryFee = $deliveryType === 'PICKUP' ? 0 : ($zones[$neighborhood] ?? 0);
-  if ($deliveryType === 'DELIVERY' && $neighborhood === '') {
-    throw new InvalidArgumentException('Selecione o bairro.');
+  $mode = (string) ($settings['deliveryMode'] ?? 'neighborhood');
+  $deliveryFee = 0;
+  if ($deliveryType === 'DELIVERY') {
+    if ($neighborhood === '') {
+      throw new InvalidArgumentException('Selecione o bairro.');
+    }
+    if ($mode === 'fixed') {
+      $deliveryFee = (float) ($settings['fixedDeliveryFee'] ?? 8);
+    } else {
+      $deliveryFee = $zones[$neighborhood] ?? 0;
+    }
   }
 
   $extrasRows = [];
@@ -689,6 +722,10 @@ function gostinho_create_order(PDO $pdo, array $body): array {
     throw new InvalidArgumentException('Pedido mínimo: ' . gostinho_format_brl((float) $settings['minOrderValue']));
   }
 
+  $freeMin = (float) ($settings['freeDeliveryMin'] ?? 80);
+  $freeDelivery = $deliveryType === 'DELIVERY' && $freeMin > 0 && $subtotal >= $freeMin;
+  if ($freeDelivery) $deliveryFee = 0;
+
   $discount = 0;
   $couponCode = strtoupper(trim((string) ($body['couponCode'] ?? '')));
   if ($couponCode !== '') {
@@ -696,15 +733,38 @@ function gostinho_create_order(PDO $pdo, array $body): array {
     $cstmt->execute([$couponCode]);
     $coupon = $cstmt->fetch();
     if ($coupon && $subtotal >= (float) $coupon['min_order']) {
-      if ($coupon['expires_at'] && $coupon['expires_at'] < gostinho_today_ymd()) {
+      $today = gostinho_today_ymd();
+      if (!empty($coupon['starts_at']) && $coupon['starts_at'] > $today) {
+        throw new InvalidArgumentException('Cupom ainda não está válido.');
+      }
+      if ($coupon['expires_at'] && $coupon['expires_at'] < $today) {
         throw new InvalidArgumentException('Cupom expirado.');
       }
       if ($coupon['max_uses'] !== null && (int) $coupon['used_count'] >= (int) $coupon['max_uses']) {
         throw new InvalidArgumentException('Cupom esgotado.');
       }
+      $maxPer = (int) ($coupon['max_per_customer'] ?? 1);
+      if ($maxPer > 0) {
+        $who = $customer['id'] ?? $phone;
+        $used = $pdo->prepare('SELECT COUNT(*) FROM coupon_uses WHERE coupon_code = ? AND (customer_id = ? OR phone = ?)');
+        $used->execute([$couponCode, $who, $phone]);
+        if ((int) $used->fetchColumn() >= $maxPer) {
+          throw new InvalidArgumentException('Você já usou este cupom.');
+        }
+      }
       $discount = $coupon['type'] === 'fixed'
         ? min((float) $coupon['value'], $subtotal)
         : round($subtotal * ((float) $coupon['value'] / 100), 2);
+    }
+  }
+
+  $loyaltyDiscount = 0;
+  if (!empty($body['redeemLoyalty']) && $customer && !empty($settings['loyaltyEnabled'])) {
+    $need = (int) ($settings['loyaltyRedeemPoints'] ?? 500);
+    $val = (float) ($settings['loyaltyRedeemValue'] ?? 10);
+    if ((int) $customer['points'] >= $need) {
+      $loyaltyDiscount = $val;
+      $discount += $val;
     }
   }
 
@@ -713,14 +773,17 @@ function gostinho_create_order(PDO $pdo, array $body): array {
   $number = (int) $pdo->query('SELECT COALESCE(MAX(number), 0) + 1 FROM orders')->fetchColumn();
   $now = (new DateTime('now', new DateTimeZone('America/Sao_Paulo')))->format('c');
 
+  $pay = strtoupper((string) ($body['paymentMethod'] ?? 'PIX'));
+  if (!in_array($pay, ['PIX', 'CASH', 'CARD', 'CARD_DELIVERY', 'CARD_ONLINE'], true)) $pay = 'PIX';
+
   $pdo->prepare('INSERT INTO orders (id,number,customer_name,phone,address,address_number,complement,neighborhood,delivery_type,delivery_fee,payment_method,change_for,notes,coupon_code,discount,subtotal,total,status,printed,scheduled_date,scheduled_slot,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
     ->execute([
       $id, $number, $name, $phone,
-      (string) ($body['address'] ?? ''),
-      (string) ($body['addressNumber'] ?? ''),
+      (string) ($body['address'] ?? $body['street'] ?? ''),
+      (string) ($body['addressNumber'] ?? $body['number'] ?? ''),
       (string) ($body['complement'] ?? ''),
       $neighborhood, $deliveryType, $deliveryFee,
-      (string) ($body['paymentMethod'] ?? 'PIX'),
+      $pay,
       isset($body['changeFor']) && $body['changeFor'] !== null && $body['changeFor'] !== '' ? (float) $body['changeFor'] : null,
       (string) ($body['notes'] ?? ''),
       $discount > 0 ? $couponCode : '',
@@ -729,6 +792,20 @@ function gostinho_create_order(PDO $pdo, array $body): array {
       $now,
     ]);
 
+  try {
+    $pdo->prepare('UPDATE orders SET customer_id = ?, driver_id = ?, cep = ?, city = ?, state = ?, address_label = ?, reference_note = ? WHERE id = ?')->execute([
+      $customer['id'] ?? '',
+      '',
+      preg_replace('/\D+/', '', (string) ($body['cep'] ?? '')),
+      (string) ($body['city'] ?? ''),
+      strtoupper(substr((string) ($body['state'] ?? ''), 0, 2)),
+      (string) ($body['addressLabel'] ?? $body['label'] ?? ''),
+      (string) ($body['reference'] ?? ''),
+      $id,
+    ]);
+  } catch (Throwable $e) {
+  }
+
   $ins = $pdo->prepare('INSERT INTO order_items (id,order_id,product_id,product_name,quantity,unit_price,size_name,extras,notes) VALUES (?,?,?,?,?,?,?,?,?)');
   foreach ($lines as $line) {
     $ins->execute([gostinho_id('oi'), $id, $line['productId'], $line['productName'], $line['quantity'], $line['unitPrice'], $line['size'], $line['extras'], $line['notes']]);
@@ -736,6 +813,22 @@ function gostinho_create_order(PDO $pdo, array $body): array {
 
   if ($discount > 0 && $couponCode !== '') {
     $pdo->prepare('UPDATE coupons SET used_count = used_count + 1 WHERE code = ?')->execute([$couponCode]);
+    try {
+      gostinho_upsert($pdo, 'coupon_uses', ['id','coupon_code','customer_id','phone','created_at'], [
+        gostinho_id('cu'), $couponCode, $customer['id'] ?? '', $phone, $now,
+      ]);
+    } catch (Throwable $e) {
+    }
+  }
+
+  if ($loyaltyDiscount > 0 && $customer) {
+    $need = (int) ($settings['loyaltyRedeemPoints'] ?? 500);
+    $pdo->prepare('UPDATE customers SET points = points - ? WHERE id = ? AND points >= ?')->execute([$need, $customer['id'], $need]);
+  }
+
+  gostinho_notify($pdo, 'ADMIN', 'Novo pedido recebido', "Pedido #{$number} de {$name}.", $id);
+  if ($customer) {
+    gostinho_notify($pdo, 'CLIENTE', 'Pedido recebido', "Recebemos o seu pedido #{$number}.", $id, $customer['id']);
   }
 
   $order = [
@@ -749,7 +842,7 @@ function gostinho_create_order(PDO $pdo, array $body): array {
     'neighborhood' => $neighborhood,
     'deliveryType' => $deliveryType,
     'deliveryFee' => $deliveryFee,
-    'paymentMethod' => (string) ($body['paymentMethod'] ?? 'PIX'),
+    'paymentMethod' => $pay,
     'changeFor' => $body['changeFor'] ?? null,
     'notes' => (string) ($body['notes'] ?? ''),
     'couponCode' => $discount > 0 ? $couponCode : '',
@@ -770,8 +863,8 @@ function gostinho_create_order(PDO $pdo, array $body): array {
 }
 
 function gostinho_get_order(PDO $pdo, string $id): ?array {
-  $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? OR CAST(number AS TEXT) = ?');
-  $stmt->execute([$id, $id]);
+  $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? OR number = ?');
+  $stmt->execute([$id, ctype_digit($id) ? (int) $id : -1]);
   $row = $stmt->fetch();
   if (!$row) return null;
   $items = [];
@@ -779,18 +872,41 @@ function gostinho_get_order(PDO $pdo, string $id): ?array {
   $it->execute([$row['id']]);
   foreach ($it as $line) {
     $items[] = [
+      'productId' => $line['product_id'],
       'productName' => $line['product_name'],
       'quantity' => (int) $line['quantity'],
       'unitPrice' => (float) $line['unit_price'],
       'size' => $line['size_name'],
       'extras' => $line['extras'],
+      'notes' => $line['notes'],
     ];
   }
+  $review = null;
+  try {
+    $rv = $pdo->prepare('SELECT rating, comment FROM order_reviews WHERE order_id = ?');
+    $rv->execute([$row['id']]);
+    $review = $rv->fetch() ?: null;
+  } catch (Throwable $e) {
+  }
+  $driver = null;
+  if (!empty($row['driver_id'])) {
+    try {
+      $d = $pdo->prepare('SELECT id, name, phone, status FROM delivery_persons WHERE id = ?');
+      $d->execute([$row['driver_id']]);
+      $driver = $d->fetch() ?: null;
+    } catch (Throwable $e) {
+    }
+  }
+  $copy = gostinho_status_copy((string) $row['status']);
   return [
     'id' => $row['id'],
     'number' => (int) $row['number'],
     'customerName' => $row['customer_name'],
+    'customerId' => $row['customer_id'] ?? '',
+    'phone' => $row['phone'],
     'status' => $row['status'],
+    'statusLabel' => $copy[0],
+    'statusMessage' => $copy[1],
     'total' => (float) $row['total'],
     'subtotal' => (float) $row['subtotal'],
     'discount' => (float) $row['discount'],
@@ -799,18 +915,39 @@ function gostinho_get_order(PDO $pdo, string $id): ?array {
     'scheduledDate' => $row['scheduled_date'],
     'scheduledSlot' => $row['scheduled_slot'],
     'paymentMethod' => $row['payment_method'],
+    'changeFor' => $row['change_for'] !== null ? (float) $row['change_for'] : null,
+    'address' => $row['address'],
+    'addressNumber' => $row['address_number'],
+    'complement' => $row['complement'],
+    'neighborhood' => $row['neighborhood'],
+    'cep' => $row['cep'] ?? '',
+    'city' => $row['city'] ?? '',
+    'state' => $row['state'] ?? '',
+    'notes' => $row['notes'],
+    'couponCode' => $row['coupon_code'],
+    'driver' => $driver,
+    'review' => $review,
+    'createdAt' => $row['created_at'],
+    'eta' => '40 a 70 min após o início do preparo',
     'items' => $items,
   ];
 }
 
-function gostinho_validate_coupon(PDO $pdo, string $code, float $subtotal): array {
+function gostinho_validate_coupon(PDO $pdo, string $code, float $subtotal, string $customerId = '', string $phone = ''): array {
   $code = strtoupper(trim($code));
   $stmt = $pdo->prepare('SELECT * FROM coupons WHERE code = ? AND active = 1');
   $stmt->execute([$code]);
   $c = $stmt->fetch();
   if (!$c) throw new InvalidArgumentException('Cupom inválido.');
-  if ($c['expires_at'] && $c['expires_at'] < gostinho_today_ymd()) {
+  $today = gostinho_today_ymd();
+  if (!empty($c['starts_at']) && $c['starts_at'] > $today) {
+    throw new InvalidArgumentException('Cupom ainda não está válido.');
+  }
+  if ($c['expires_at'] && $c['expires_at'] < $today) {
     throw new InvalidArgumentException('Cupom expirado.');
+  }
+  if ($c['max_uses'] !== null && (int) $c['used_count'] >= (int) $c['max_uses']) {
+    throw new InvalidArgumentException('Cupom esgotado.');
   }
   if ((float) $c['min_order'] > $subtotal) {
     throw new InvalidArgumentException('Pedido mínimo para este cupom: ' . gostinho_format_brl((float) $c['min_order']));
@@ -818,7 +955,7 @@ function gostinho_validate_coupon(PDO $pdo, string $code, float $subtotal): arra
   $discount = $c['type'] === 'fixed'
     ? min((float) $c['value'], $subtotal)
     : round($subtotal * ((float) $c['value'] / 100), 2);
-  return ['code' => $code, 'discount' => $discount];
+  return ['code' => $code, 'discount' => $discount, 'type' => $c['type'], 'value' => (float) $c['value']];
 }
 
 function gostinho_mysql_upsert_fix(PDO $pdo): void {

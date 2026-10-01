@@ -9,18 +9,18 @@ G.boot((data) => {
   const zones = data.zones || [];
   const minFee = zones.length ? Math.min(...zones.map((z) => z.price)) : 0;
 
-  document.getElementById("store-hero").innerHTML = `
+  if (document.getElementById("store-hero")) {
+    document.getElementById("store-hero").innerHTML = `
     <div class="store-cover"><img src="/marmitas/foto-26.jpg" alt="" /></div>
     <div class="store-info">
-      <img class="logo" src="${s.logo || "/logo.png"}" alt="" />
-      <h1>${s.companyName || "Gostinho de Casa"}</h1>
+      <h1>Cardápio da casa</h1>
       <div class="store-meta">
         <span class="star">★ 4,8</span>
-        <span>Marmitas</span>
-        <span>Pedido em ${days} ${days === 1 ? "dia" : "dias"}</span>
-        <span>Entrega <b>${G.formatBRL(minFee)}</b></span>
+        <span>Encomenda ${days} ${days === 1 ? "dia" : "dias"}</span>
+        <span>Entrega a partir de <b>${G.formatBRL(minFee)}</b></span>
       </div>
     </div>`;
+  }
 
   const input = document.getElementById("q");
   if (q && input) input.value = q;

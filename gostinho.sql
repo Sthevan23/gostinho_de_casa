@@ -160,9 +160,10 @@ INSERT INTO categories (id,name,slug,description,image,sort_order,active) VALUES
 ('cat-adicionais','Adicionais','adicionais','Complete sua marmita','/marmitas/foto-10.jpg',6, 1);
 
 INSERT INTO extras (id,name,price,active) VALUES
-('ex-ovo', 'Ovo extra', 3, 1),
+('ex-ovo', 'Ovo extra', 2, 1),
 ('ex-arroz', 'Arroz extra', 4, 1),
-('ex-batata', 'Batata doce extra', 5, 1),
+('ex-batata', 'Batata frita', 5, 1),
+('ex-carne', 'Carne extra', 7, 1),
 ('ex-queijo', 'Queijo', 4.5, 1),
 ('ex-molho', 'Molho extra', 2.5, 1),
 ('ex-salada', 'Salada extra', 4, 1);
@@ -210,5 +211,97 @@ INSERT INTO reviews (id,name,rating,comment,active) VALUES
 ('r2', 'Pedro Henrique', 5, 'A fitness de frango é perfeita pós-treino.', 1),
 ('r3', 'Ana Luiza', 4, 'Entrega rápida e marmita bem montada.', 1),
 ('r4', 'Rafael M.', 5, 'O combo da semana salvou meus almoços.', 1);
+
+CREATE TABLE IF NOT EXISTS customers (
+  id VARCHAR(64) PRIMARY KEY,
+  name VARCHAR(191) NOT NULL,
+  email VARCHAR(191) DEFAULT '',
+  phone VARCHAR(32) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  token VARCHAR(64) DEFAULT '',
+  points INT DEFAULT 0,
+  role VARCHAR(32) DEFAULT 'CLIENTE',
+  active TINYINT(1) DEFAULT 1,
+  created_at VARCHAR(32) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS addresses (
+  id VARCHAR(64) PRIMARY KEY,
+  customer_id VARCHAR(64) NOT NULL,
+  label VARCHAR(64) DEFAULT 'Casa',
+  cep VARCHAR(16) DEFAULT '',
+  street VARCHAR(191) DEFAULT '',
+  number VARCHAR(32) DEFAULT '',
+  complement VARCHAR(191) DEFAULT '',
+  neighborhood VARCHAR(191) DEFAULT '',
+  city VARCHAR(191) DEFAULT '',
+  state VARCHAR(8) DEFAULT '',
+  reference VARCHAR(191) DEFAULT '',
+  is_default TINYINT(1) DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS favorites (
+  id VARCHAR(64) PRIMARY KEY,
+  customer_id VARCHAR(64) NOT NULL,
+  product_id VARCHAR(64) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS delivery_persons (
+  id VARCHAR(64) PRIMARY KEY,
+  name VARCHAR(191) NOT NULL,
+  phone VARCHAR(32) DEFAULT '',
+  status VARCHAR(32) DEFAULT 'AVAILABLE',
+  active TINYINT(1) DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS stock_items (
+  id VARCHAR(64) PRIMARY KEY,
+  name VARCHAR(191) NOT NULL,
+  unit VARCHAR(32) DEFAULT 'kg',
+  quantity DOUBLE DEFAULT 0,
+  min_quantity DOUBLE DEFAULT 0,
+  active TINYINT(1) DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id VARCHAR(64) PRIMARY KEY,
+  item_id VARCHAR(64) NOT NULL,
+  type VARCHAR(32) NOT NULL,
+  quantity DOUBLE NOT NULL,
+  note TEXT,
+  created_at VARCHAR(32) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS notifications (
+  id VARCHAR(64) PRIMARY KEY,
+  audience VARCHAR(32) DEFAULT 'ADMIN',
+  customer_id VARCHAR(64) DEFAULT '',
+  title VARCHAR(191) NOT NULL,
+  body TEXT,
+  order_id VARCHAR(64) DEFAULT '',
+  read_flag TINYINT(1) DEFAULT 0,
+  created_at VARCHAR(32) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS order_reviews (
+  id VARCHAR(64) PRIMARY KEY,
+  order_id VARCHAR(64) NOT NULL,
+  customer_id VARCHAR(64) DEFAULT '',
+  rating INT NOT NULL,
+  comment TEXT,
+  created_at VARCHAR(32) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS coupon_uses (
+  id VARCHAR(64) PRIMARY KEY,
+  coupon_code VARCHAR(64) NOT NULL,
+  customer_id VARCHAR(64) DEFAULT '',
+  phone VARCHAR(32) DEFAULT '',
+  created_at VARCHAR(32) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE orders ADD COLUMN customer_id VARCHAR(64) DEFAULT '';
+ALTER TABLE orders ADD COLUMN driver_id VARCHAR(64) DEFAULT '';
+ALTER TABLE orders ADD COLUMN cep VARCHAR(16) DEFAULT '';
+ALTER TABLE orders ADD COLUMN city VARCHAR(191) DEFAULT '';
+ALTER TABLE orders ADD COLUMN state VARCHAR(8) DEFAULT '';
+ALTER TABLE orders ADD COLUMN address_label VARCHAR(64) DEFAULT '';
+ALTER TABLE orders ADD COLUMN reference_note VARCHAR(191) DEFAULT '';
+
+INSERT INTO coupons (id,code,type,value,min_order,max_uses,used_count,expires_at,active) VALUES
+('c-gostinho10', 'GOSTINHO10', 'percent', 10, 40, 200, 0, '2026-12-31', 1),
+('c-primeira', 'PRIMEIRACOMPRA', 'fixed', 10, 30, 500, 0, '2026-12-31', 1);
 
 SET FOREIGN_KEY_CHECKS = 1;

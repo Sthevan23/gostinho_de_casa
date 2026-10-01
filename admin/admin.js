@@ -14,19 +14,24 @@
     categorias: "Categorias",
     promocoes: "Promoções",
     cupons: "Cupons",
-    entregas: "Entregas",
+    clientes: "Clientes",
+    entregadores: "Entregadores",
+    entregas: "Taxas de entrega",
     financeiro: "Financeiro",
+    relatorios: "Relatórios",
     config: "Configurações",
   };
   const STATUS = [
-    ["NEW", "Novo", "#2563eb"],
-    ["CONFIRMED", "Confirmado", "#7c3aed"],
-    ["PREPARING", "Preparo", "#d97706"],
-    ["DELIVERING", "Entrega", "#0891b2"],
-    ["DELIVERED", "Entregue", "#16a34a"],
-    ["CANCELLED", "Cancelado", "#dc2626"],
+    ["NEW", "Novos", "#2563eb"],
+    ["CONFIRMED", "Confirmados", "#7c3aed"],
+    ["PREPARING", "Em preparação", "#d97706"],
+    ["READY", "Prontos", "#0f766e"],
+    ["DELIVERING", "Saiu para entrega", "#0891b2"],
+    ["DELIVERED", "Entregues", "#16a34a"],
+    ["CANCELLED", "Cancelados", "#dc2626"],
   ];
-  const PAY = { PIX: "Pix", CASH: "Dinheiro", CARD: "Cartão", CARD_DELIVERY: "Cartão na entrega" };
+  const PAY = { PIX: "Pix", CASH: "Dinheiro", CARD: "Cartão", CARD_DELIVERY: "Cartão na entrega", CARD_ONLINE: "Cartão online" };
+  const DRV = { AVAILABLE: "🟢 Disponível", BUSY: "🟡 Em entrega", OFF: "🔴 Indisponível" };
 
   let DATA = { orders: [], products: [], categories: [], coupons: [], zones: [], promotions: [], extras: [], finance: [], settings: {} };
 
@@ -115,6 +120,10 @@
     renderZones();
     renderFinance();
     renderConfig();
+    renderCustomers();
+    renderDrivers();
+    renderStockItems();
+    renderReports(DATA.reports || {});
   }
 
   function renderDash() {
@@ -123,10 +132,11 @@
     const ofToday = orders.filter((o) => (o.createdAt || "").slice(0, 10) === today || (o.scheduledDate || "") === today);
     const open = orders.filter((o) => !["DELIVERED", "CANCELLED"].includes(o.status)).length;
     const sales = ofToday.filter((o) => o.status !== "CANCELLED").reduce((s, o) => s + Number(o.total), 0);
-    document.getElementById("stat-new").textContent = orders.filter((o) => o.status === "NEW").length;
-    document.getElementById("stat-open").textContent = open;
+    document.getElementById("stat-new").textContent = ofToday.filter((o) => o.status !== "CANCELLED").length;
+    document.getElementById("stat-open").textContent = orders.filter((o) => o.status === "NEW").length;
     document.getElementById("stat-today").textContent = brl(sales);
-    document.getElementById("stat-prods").textContent = (DATA.products || []).filter((p) => p.active).length;
+    document.getElementById("stat-ticket").textContent = brl(ofToday.filter((o) => o.status !== "CANCELLED").length ? sales / ofToday.filter((o) => o.status !== "CANCELLED").length : 0);
+    document.getElementById("stat-prods").textContent = (DATA.customers || []).length || (DATA.products || []).filter((p) => p.active).length;
     const last = orders.slice(0, 8);
     document.getElementById("dash-orders").innerHTML = last.length
       ? `<table class="data"><thead><tr><th>#</th><th>Cliente</th><th>Encomenda</th><th>Total</th><th>Status</th></tr></thead><tbody>${last
@@ -148,13 +158,17 @@
       const col = list.filter((o) => o.status === key);
       return `<div class="kanban__col"><h3>${label} <span>${col.length}</span></h3>${col
         .map(
-          (o) => `<div class="ticket" data-open="${o.id}">
-            <b>#${String(o.number).padStart(3, "0")} · ${esc(o.customerName)}</b>
-            ${esc(o.scheduledDate)} · ${o.scheduledSlot === "JANTAR" ? "Jantar" : "Almoço"}<br/>
-            ${brl(o.total)}
+          (o) => `<div class="ticket" data-open="${o.id}" ${key === "NEW" ? "draggable=true" : ""}>
+            <b>#${String(o.number).padStart(4, "0")} · ${esc(o.customerName)}</b>
+            ${(o.items || []).slice(0, 3).map((i) => `${i.quantity}x ${esc(i.productName)}`).join("<br/>")}
+            <br/>${brl(o.total)} · ${PAY[o.paymentMethod] || o.paymentMethod}
+            <br/><small>${esc(o.scheduledDate)} · ${o.scheduledSlot === "JANTAR" ? "Jantar" : "Almoço"}</small>
+            ${o.neighborhood ? `<br/><small>${esc(o.address || "")}, ${esc(o.addressNumber || "")} · ${esc(o.neighborhood)}</small>` : ""}
             <select data-ord="${o.id}" onclick="event.stopPropagation()">${STATUS.map(
               ([sk, sl]) => `<option value="${sk}" ${sk === o.status ? "selected" : ""}>${sl}</option>`,
             ).join("")}</select>
+            ${o.status === "NEW" ? `<button type="button" class="btn btn-primary btn-sm" data-acc="${o.id}" onclick="event.stopPropagation()">Aceitar</button>
+            <button type="button" class="btn btn-danger btn-sm" data-rej="${o.id}" onclick="event.stopPropagation()">Recusar</button>` : ""}
             <button type="button" class="btn btn-ghost btn-sm" data-print="${o.id}" onclick="event.stopPropagation()">Imprimir</button>
           </div>`,
         )
@@ -169,6 +183,24 @@
     });
     document.querySelectorAll("[data-print]").forEach((btn) => (btn.onclick = () => printOrder(btn.dataset.print)));
     document.querySelectorAll("[data-open]").forEach((el) => (el.onclick = () => showOrder(el.dataset.open)));
+    document.querySelectorAll("[data-acc]").forEach((b) => {
+      b.onclick = async (e) => {
+        e.stopPropagation();
+        const out = await api({ action: "update_order", id: b.dataset.acc, status: "CONFIRMED" });
+        if (out.whatsappUrl) window.open(out.whatsappUrl, "_blank");
+        toast("Pedido aceito");
+        await reload();
+      };
+    });
+    document.querySelectorAll("[data-rej]").forEach((b) => {
+      b.onclick = async (e) => {
+        e.stopPropagation();
+        if (!confirm("Recusar este pedido?")) return;
+        await api({ action: "update_order", id: b.dataset.rej, status: "CANCELLED" });
+        toast("Pedido recusado");
+        await reload();
+      };
+    });
   }
 
   function showOrder(id) {
@@ -178,7 +210,8 @@
       o.deliveryType === "PICKUP"
         ? "Retirada no local"
         : `${o.address}, ${o.addressNumber}${o.complement ? " - " + o.complement : ""} · ${o.neighborhood || ""}`;
-    openModal(`<h2>Pedido #${String(o.number).padStart(3, "0")}</h2>
+    const drivers = DATA.drivers || [];
+    openModal(`<h2>Pedido #${String(o.number).padStart(4, "0")}</h2>
       <p><b>${esc(o.customerName)}</b> · ${esc(o.phone)}</p>
       <p style="color:var(--muted);margin:.5rem 0">${esc(o.scheduledDate)} · ${o.scheduledSlot === "JANTAR" ? "Jantar" : "Almoço"}</p>
       <p>${esc(addr)}</p>
@@ -188,12 +221,37 @@
         .join("")}</ul>
       ${o.notes ? `<p><b>Obs:</b> ${esc(o.notes)}</p>` : ""}
       <p style="margin-top:8px"><b>Total ${brl(o.total)}</b></p>
+      <label style="display:block;margin:12px 0">Entregador responsável
+        <select id="m-drv" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #eee">
+          <option value="">Sem entregador</option>
+          ${drivers.map((d) => `<option value="${d.id}" ${o.driverId === d.id ? "selected" : ""}>${esc(d.name)} · ${DRV[d.status] || d.status}</option>`).join("")}
+        </select>
+      </label>
       <div class="modal__actions">
         <button class="btn btn-ghost" type="button" id="m-close">Fechar</button>
+        ${o.status === "NEW" ? `<button class="btn btn-danger" type="button" id="m-rej">Recusar</button><button class="btn btn-primary" type="button" id="m-acc">Aceitar</button>` : ""}
         <button class="btn btn-primary" type="button" id="m-print">Imprimir</button>
       </div>`);
     document.getElementById("m-close").onclick = closeModal;
     document.getElementById("m-print").onclick = () => printOrder(id);
+    document.getElementById("m-acc") && (document.getElementById("m-acc").onclick = async () => {
+      const out = await api({ action: "update_order", id, status: "CONFIRMED", driverId: document.getElementById("m-drv").value });
+      if (out.whatsappUrl) window.open(out.whatsappUrl, "_blank");
+      closeModal();
+      await reload();
+    });
+    document.getElementById("m-rej") && (document.getElementById("m-rej").onclick = async () => {
+      await api({ action: "update_order", id, status: "CANCELLED" });
+      closeModal();
+      await reload();
+    });
+    document.getElementById("m-drv").onchange = async () => {
+      const driverId = document.getElementById("m-drv").value;
+      if (!driverId) return;
+      await api({ action: "update_order", id, status: o.status === "READY" || o.status === "PREPARING" ? "DELIVERING" : o.status, driverId });
+      toast("Entregador atribuído");
+      await reload();
+    };
   }
 
   function printOrder(id) {
@@ -538,6 +596,23 @@ ${o.notes ? "Obs: " + o.notes : ""}
         <div class="form-group"><label>Dias de antecedência</label><input name="minAdvanceDays" type="number" min="1" value="${s.minAdvanceDays || 1}" /></div>
         <div class="form-group"><label>Pedido mínimo (R$)</label><input name="minOrderValue" type="number" step="0.01" value="${s.minOrderValue || 0}" /></div>
       </div>
+      <div class="form-row">
+        <div class="form-group"><label>Entrega grátis acima de (R$)</label><input name="freeDeliveryMin" type="number" step="0.01" value="${s.freeDeliveryMin || 80}" /></div>
+        <div class="form-group"><label>Taxa fixa (R$)</label><input name="fixedDeliveryFee" type="number" step="0.01" value="${s.fixedDeliveryFee || 8}" /></div>
+      </div>
+      <div class="form-group"><label>Modo da taxa</label>
+        <select name="deliveryMode">
+          <option value="neighborhood" ${s.deliveryMode !== "fixed" ? "selected" : ""}>Por bairro</option>
+          <option value="fixed" ${s.deliveryMode === "fixed" ? "selected" : ""}>Taxa fixa</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Chave Pix</label><input name="pixKey" value="${esc(s.pixKey || "")}" /></div>
+      <div class="form-row">
+        <div class="form-group"><label>Pontos por real</label><input name="loyaltyPerReal" type="number" step="0.1" value="${s.loyaltyPerReal || 1}" /></div>
+        <div class="form-group"><label>Resgate (pontos)</label><input name="loyaltyRedeemPoints" type="number" value="${s.loyaltyRedeemPoints || 500}" /></div>
+      </div>
+      <div class="form-group"><label>Valor do resgate (R$)</label><input name="loyaltyRedeemValue" type="number" step="0.01" value="${s.loyaltyRedeemValue || 10}" /></div>
+      <label class="check"><input type="checkbox" name="loyaltyEnabled" ${s.loyaltyEnabled !== false ? "checked" : ""} /> Programa de fidelidade</label>
       <label class="check"><input type="checkbox" name="deliveryEnabled" ${s.deliveryEnabled !== false ? "checked" : ""} /> Entrega</label>
       <label class="check"><input type="checkbox" name="pickupEnabled" ${s.pickupEnabled !== false ? "checked" : ""} /> Retirada</label>
       <h3 style="margin:18px 0 8px">Acesso</h3>
@@ -546,14 +621,123 @@ ${o.notes ? "Obs: " + o.notes : ""}
       <button class="btn btn-primary" type="submit">Salvar configurações</button>`;
   }
 
+  function renderCustomers() {
+    const box = document.getElementById("tbl-customers");
+    if (!box) return;
+    box.innerHTML = `<thead><tr><th>Nome</th><th>Contato</th><th>Pedidos</th><th>Gasto</th><th>Ticket</th><th>Pontos</th><th>Último</th></tr></thead><tbody>${(DATA.customers || [])
+      .map(
+        (c) =>
+          `<tr><td>${esc(c.name)}</td><td>${esc(c.phone)}<br/><small>${esc(c.email || "")}</small></td><td>${c.orders}</td><td>${brl(c.spent)}</td><td>${brl(c.ticket)}</td><td>${c.points}</td><td>${esc((c.lastOrder || "").slice(0, 10))}</td></tr>`,
+      )
+      .join("")}</tbody>`;
+  }
+
+  function renderDrivers() {
+    const box = document.getElementById("drivers-list");
+    if (!box) return;
+    box.innerHTML = (DATA.drivers || [])
+      .map(
+        (d) => `<form class="card" data-drv="${d.id}" style="margin-bottom:10px;display:grid;gap:8px">
+          <div class="form-row">
+            <div class="form-group" style="margin:0"><label>Nome</label><input name="name" value="${esc(d.name)}" /></div>
+            <div class="form-group" style="margin:0"><label>Telefone</label><input name="phone" value="${esc(d.phone)}" /></div>
+          </div>
+          <div class="form-group" style="margin:0"><label>Status</label>
+            <select name="status">${Object.entries(DRV).map(([k, l]) => `<option value="${k}" ${d.status === k ? "selected" : ""}>${l}</option>`).join("")}</select>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" type="submit">Salvar</button>
+            <button class="btn btn-danger btn-sm" type="button" data-deld="${d.id}">Excluir</button>
+          </div>
+        </form>`,
+      )
+      .join("") || '<p style="color:var(--muted)">Nenhum entregador.</p>';
+    box.querySelectorAll("[data-drv]").forEach((f) => {
+      f.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(f);
+        const cur = DATA.drivers.find((x) => x.id === f.dataset.drv);
+        await api({ action: "save_driver", driver: { ...cur, name: fd.get("name"), phone: fd.get("phone"), status: fd.get("status") } });
+        toast("Entregador salvo");
+        await reload();
+      };
+    });
+    box.querySelectorAll("[data-deld]").forEach((b) => {
+      b.onclick = async () => {
+        if (!confirm("Excluir entregador?")) return;
+        await api({ action: "delete_driver", id: b.dataset.deld });
+        await reload();
+      };
+    });
+  }
+
+  function renderStockItems() {
+    const box = document.getElementById("tbl-stock-items");
+    if (!box) return;
+    box.innerHTML = `<thead><tr><th>Insumo</th><th>Qtd</th><th>Mínimo</th><th>Alerta</th><th></th></tr></thead><tbody>${(DATA.stockItems || [])
+      .map(
+        (s) =>
+          `<tr><td>${esc(s.name)} <small>${esc(s.unit)}</small></td><td>${s.quantity}</td><td>${s.minQuantity}</td><td class="${s.low ? "low" : ""}">${s.low ? "⚠️ Estoque baixo" : "OK"}</td><td>
+            <button class="btn btn-ghost btn-sm" data-mv="${s.id}|in">Entrada</button>
+            <button class="btn btn-ghost btn-sm" data-mv="${s.id}|out">Saída</button>
+            <button class="btn btn-ghost btn-sm" data-mv="${s.id}|set">Ajuste</button>
+          </td></tr>`,
+      )
+      .join("")}</tbody>`;
+    box.querySelectorAll("[data-mv]").forEach((b) => {
+      b.onclick = async () => {
+        const [id, type] = b.dataset.mv.split("|");
+        const qty = Number(prompt(type === "set" ? "Novo saldo:" : "Quantidade:") || 0);
+        if (!qty) return;
+        await api({ action: "move_stock", id, type, quantity: qty });
+        toast("Estoque atualizado");
+        await reload();
+      };
+    });
+  }
+
+  function renderReports(rep) {
+    const stats = document.getElementById("rep-stats");
+    const body = document.getElementById("rep-body");
+    if (!stats || !body) return;
+    stats.innerHTML = `
+      <div class="stat-card"><div class="stat-card__icon" style="background:#e8f5e9;color:#2d6a4f"><i class="fas fa-dollar-sign"></i></div><div><span class="stat-card__label">Faturamento</span><strong class="stat-card__value">${brl(rep.revenue)}</strong></div></div>
+      <div class="stat-card"><div class="stat-card__icon" style="background:#e3f2fd;color:#2563eb"><i class="fas fa-bag-shopping"></i></div><div><span class="stat-card__label">Pedidos</span><strong class="stat-card__value">${rep.orders || 0}</strong></div></div>
+      <div class="stat-card"><div class="stat-card__icon" style="background:#fff8e1;color:#c4a574"><i class="fas fa-receipt"></i></div><div><span class="stat-card__label">Ticket médio</span><strong class="stat-card__value">${brl(rep.ticket)}</strong></div></div>
+      <div class="stat-card"><div class="stat-card__icon" style="background:#ffebee;color:#dc2626"><i class="fas fa-ban"></i></div><div><span class="stat-card__label">Cancelados</span><strong class="stat-card__value">${rep.cancelled || 0}</strong></div></div>
+      <div class="stat-card"><div class="stat-card__icon" style="background:#e0f2f1;color:#0f766e"><i class="fas fa-motorcycle"></i></div><div><span class="stat-card__label">Taxas</span><strong class="stat-card__value">${brl(rep.deliveryFees)}</strong></div></div>
+      <div class="stat-card"><div class="stat-card__icon" style="background:#fce4ec;color:#c2185b"><i class="fas fa-percent"></i></div><div><span class="stat-card__label">Descontos</span><strong class="stat-card__value">${brl(rep.discounts)}</strong></div></div>
+      <div class="stat-card"><div class="stat-card__icon" style="background:#f3e8ff;color:#7c3aed"><i class="fas fa-chart-line"></i></div><div><span class="stat-card__label">Lucro estimado</span><strong class="stat-card__value">${brl(rep.estimatedProfit)}</strong></div></div>`;
+    const maxDay = Math.max(1, ...(rep.byDay || []).map((d) => d.total));
+    body.innerHTML = `
+      <h3>Vendas por dia</h3>
+      <div class="bars">${(rep.byDay || [])
+        .map((d) => `<div class="bar"><span>${esc(d.date.slice(5))}</span><i style="height:${Math.round((d.total / maxDay) * 90) + 8}px"></i><small>${brl(d.total)}</small></div>`)
+        .join("") || "<p>Sem dados no período.</p>"}</div>
+      <h3 style="margin-top:18px">Produtos mais vendidos</h3>
+      <ul>${(rep.topProducts || []).map((p) => `<li>${esc(p.name)} — ${p.qty} un · ${brl(p.total)}</li>`).join("")}</ul>
+      <h3 style="margin-top:18px">Categorias</h3>
+      <ul>${(rep.topCategories || []).map((p) => `<li>${esc(p.name)} — ${brl(p.total)}</li>`).join("")}</ul>
+      <h3 style="margin-top:18px">Clientes que mais compram</h3>
+      <ul>${(rep.topCustomers || []).map((p) => `<li>${esc(p.name)} — ${p.orders} pedidos · ${brl(p.total)}</li>`).join("")}</ul>
+      <h3 style="margin-top:18px">Pagamentos</h3>
+      <ul>${(rep.byPayment || []).map((p) => `<li>${PAY[p.method] || p.method} — ${p.orders} · ${brl(p.total)}</li>`).join("")}</ul>`;
+  }
+
   document.getElementById("form-config").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const settings = Object.fromEntries(fd.entries());
     settings.minAdvanceDays = Number(settings.minAdvanceDays);
     settings.minOrderValue = Number(settings.minOrderValue);
+    settings.freeDeliveryMin = Number(settings.freeDeliveryMin);
+    settings.fixedDeliveryFee = Number(settings.fixedDeliveryFee);
+    settings.loyaltyPerReal = Number(settings.loyaltyPerReal);
+    settings.loyaltyRedeemPoints = Number(settings.loyaltyRedeemPoints);
+    settings.loyaltyRedeemValue = Number(settings.loyaltyRedeemValue);
     settings.deliveryEnabled = e.target.deliveryEnabled.checked;
     settings.pickupEnabled = e.target.pickupEnabled.checked;
+    settings.loyaltyEnabled = e.target.loyaltyEnabled.checked;
     if (!settings.adminPassword) delete settings.adminPassword;
     await api({ action: "save_settings", settings });
     if (settings.adminPassword) sessionStorage.setItem("gostinho_admin_pass", settings.adminPassword);
@@ -694,6 +878,62 @@ ${o.notes ? "Obs: " + o.notes : ""}
       await reload();
     };
   };
+
+  document.getElementById("new-driver")?.addEventListener("click", () => {
+    openModal(`<h2>Novo entregador</h2><form id="fdv">
+      <div class="form-group"><label>Nome</label><input name="name" required /></div>
+      <div class="form-group"><label>Telefone</label><input name="phone" /></div>
+      <div class="modal__actions"><button class="btn btn-ghost" type="button" id="m-close">Cancelar</button><button class="btn btn-primary">Salvar</button></div></form>`);
+    document.getElementById("m-close").onclick = closeModal;
+    document.getElementById("fdv").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      await api({ action: "save_driver", driver: { name: fd.get("name"), phone: fd.get("phone"), status: "AVAILABLE", active: true } });
+      closeModal();
+      await reload();
+    };
+  });
+  document.getElementById("new-stock-item")?.addEventListener("click", () => {
+    openModal(`<h2>Novo insumo</h2><form id="fsi">
+      <div class="form-group"><label>Nome</label><input name="name" required /></div>
+      <div class="form-row">
+        <div class="form-group"><label>Unidade</label><input name="unit" value="kg" /></div>
+        <div class="form-group"><label>Quantidade</label><input name="quantity" type="number" step="0.01" value="0" /></div>
+      </div>
+      <div class="form-group"><label>Estoque mínimo</label><input name="minQuantity" type="number" step="0.01" value="5" /></div>
+      <div class="modal__actions"><button class="btn btn-ghost" type="button" id="m-close">Cancelar</button><button class="btn btn-primary">Salvar</button></div></form>`);
+    document.getElementById("m-close").onclick = closeModal;
+    document.getElementById("fsi").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      await api({ action: "save_stock_item", item: { name: fd.get("name"), unit: fd.get("unit"), quantity: Number(fd.get("quantity")), minQuantity: Number(fd.get("minQuantity")) } });
+      closeModal();
+      await reload();
+    };
+  });
+  document.getElementById("rep-go")?.addEventListener("click", async () => {
+    const from = document.getElementById("rep-from").value;
+    const to = document.getElementById("rep-to").value;
+    const rep = await api({ action: "reports", from, to });
+    renderReports(rep);
+  });
+
+  let lastNew = 0;
+  setInterval(async () => {
+    try {
+      const res = await fetch(API + "?full=1", { headers: { "X-Admin-Password": pass() }, cache: "no-store" });
+      if (!res.ok) return;
+      const next = await res.json();
+      const news = (next.orders || []).filter((o) => o.status === "NEW").length;
+      if (news > lastNew && lastNew > 0) {
+        toast("Novo pedido recebido");
+        document.title = "(" + news + ") Pedidos — Gostinho";
+      }
+      lastNew = news;
+      DATA = next;
+      renderAll();
+    } catch (_) {}
+  }, 15000);
 
   reload().catch((err) => {
     document.getElementById("page-dashboard").innerHTML = `<div class="card"><p>${esc(err.message)}</p><p style="margin-top:8px;color:var(--muted)">O painel precisa do PHP (Hostinger). No PC, rode <code>php -S localhost:8080</code>.</p></div>`;

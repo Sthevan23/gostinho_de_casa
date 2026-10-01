@@ -1,5 +1,7 @@
 const G = (() => {
   const CART_KEY = "gostinho-cart";
+  const USER_KEY = "gostinho-user";
+  const ADDR_KEY = "gostinho-address";
   const API = (() => {
     const path = location.pathname || "/";
     if (path.includes("/admin/")) return path.replace(/\/admin\/.*$/, "/api/data.php");
@@ -52,6 +54,12 @@ const G = (() => {
   function qs(name) {
     return new URLSearchParams(location.search).get(name) || "";
   }
+  function esc(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/"/g, "&quot;");
+  }
 
   function loadCart() {
     try {
@@ -85,6 +93,7 @@ const G = (() => {
     if (existing) existing.quantity += item.quantity;
     else cart.items.push({ ...item, lineId: crypto.randomUUID() });
     saveCart(cart);
+    toast("Adicionado à sacola");
   }
   function updateQty(lineId, qty) {
     const cart = loadCart();
@@ -99,6 +108,98 @@ const G = (() => {
     const cart = loadCart();
     cart.notes = notes;
     saveCart(cart);
+  }
+
+  function getUser() {
+    try {
+      return JSON.parse(localStorage.getItem(USER_KEY) || "null");
+    } catch {
+      return null;
+    }
+  }
+  function setUser(user) {
+    if (!user) localStorage.removeItem(USER_KEY);
+    else localStorage.setItem(USER_KEY, JSON.stringify(user));
+    renderChrome();
+  }
+  function getAddress() {
+    try {
+      return JSON.parse(localStorage.getItem(ADDR_KEY) || "null");
+    } catch {
+      return null;
+    }
+  }
+  function setAddress(addr) {
+    if (!addr) localStorage.removeItem(ADDR_KEY);
+    else localStorage.setItem(ADDR_KEY, JSON.stringify(addr));
+    renderChrome();
+  }
+  function favIds() {
+    return getUser()?.favorites || JSON.parse(localStorage.getItem("gostinho-favs") || "[]");
+  }
+  function isFav(id) {
+    return favIds().includes(id);
+  }
+
+  function toast(msg) {
+    let el = document.getElementById("toast-pop");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "toast-pop";
+      el.className = "toast-pop";
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.classList.add("show");
+    setTimeout(() => el.classList.remove("show"), 2200);
+  }
+
+  async function apiPost(body) {
+    const headers = { "Content-Type": "application/json" };
+    const user = getUser();
+    if (user?.token) headers["X-Customer-Token"] = user.token;
+    const res = await fetch(API, { method: "POST", headers, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Não foi possível concluir");
+    return data;
+  }
+  async function apiGet(params) {
+    const headers = {};
+    const user = getUser();
+    if (user?.token) headers["X-Customer-Token"] = user.token;
+    const res = await fetch(API + "?" + params, { cache: "no-store", headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Erro");
+    return data;
+  }
+
+  async function refreshUser() {
+    const user = getUser();
+    if (!user?.token) return null;
+    try {
+      const data = await apiGet("action=me");
+      if (data.customer) {
+        setUser(data.customer);
+        return data.customer;
+      }
+    } catch {
+      setUser(null);
+    }
+    return null;
+  }
+
+  async function toggleFav(productId) {
+    const user = getUser();
+    if (!user?.token) {
+      toast("Entre na sua conta para favoritar");
+      location.href = "/conta.html?next=" + encodeURIComponent(location.pathname + location.search);
+      return false;
+    }
+    const out = await apiPost({ action: "toggle_favorite", productId });
+    const next = { ...user, favorites: out.favorited ? [...favIds().filter((x) => x !== productId), productId] : favIds().filter((x) => x !== productId) };
+    setUser(next);
+    toast(out.favorited ? "Salvo nos favoritos" : "Removido dos favoritos");
+    return out.favorited;
   }
 
   async function loadCatalog(force) {
@@ -143,31 +244,33 @@ const G = (() => {
     return catalogPromise;
   }
 
-  function waHref(phone) {
+  function waHref(phone, text) {
     const d = onlyDigits(phone);
     const withC = d.startsWith("55") ? d : "55" + d;
-    return "https://wa.me/" + withC;
+    return "https://wa.me/" + withC + (text ? "?text=" + encodeURIComponent(text) : "");
+  }
+
+  function productHref(p) {
+    return "/produto/" + encodeURIComponent(p.slug || p.id);
   }
 
   function productCard(p) {
     const price = priceOf(p);
     const needs = (p.sizes && p.sizes.length) || (p.extras && p.extras.length);
-    const href = "/produto.html?id=" + encodeURIComponent(p.slug || p.id);
+    const href = productHref(p);
     const add = needs
       ? `<a class="add" href="${href}" aria-label="Ver produto">+</a>`
       : `<button class="add js-add" type="button" data-id="${p.id}" aria-label="Adicionar">+</button>`;
     return `<article class="dish">
-      <a class="dish-info" href="${href}">
-        <h3>${p.name}</h3>
-        <p class="desc">${p.description || ""}</p>
-        ${p.calories != null ? `<p class="kcal">${p.calories} kcal</p>` : ""}
-        <p class="price">${p.promotional && p.promoPrice != null ? `<span class="old">${formatBRL(p.price)}</span>` : ""}${formatBRL(price)}</p>
-      </a>
       <div class="dish-media">
-        <a href="${href}"><img src="${p.image || "/logo.png"}" alt="" /></a>
+        <a href="${href}"><img src="${p.image || "/logo.png"}" alt="${esc(p.name)}" loading="lazy" /></a>
         ${p.promotional ? '<span class="tag">Promo</span>' : ""}
         ${p.stock <= 0 ? "" : add}
       </div>
+      <a class="dish-info" href="${href}">
+        <h3>${esc(p.name)}</h3>
+        <p class="price">${p.promotional && p.promoPrice != null ? `<span class="old">${formatBRL(p.price)}</span>` : ""}${formatBRL(price)}</p>
+      </a>
     </article>`;
   }
 
@@ -190,15 +293,34 @@ const G = (() => {
         setTimeout(() => (btn.textContent = "+"), 700);
       });
     });
+    document.querySelectorAll("[data-fav]").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        await toggleFav(btn.dataset.fav);
+        btn.classList.toggle("on");
+        btn.textContent = btn.classList.contains("on") ? "♥" : "♡";
+      });
+    });
   }
 
   function pageKind() {
     const p = (location.pathname || "/").toLowerCase();
     if (p.includes("produto")) return "item";
-    if (p.includes("cardapio")) return "cardapio";
+    if (p.includes("cardapio") || p.includes("marmitas") || p.includes("promocoes") || p.includes("buscar")) return "cardapio";
     if (p.includes("carrinho") || p.includes("checkout")) return "sacola";
     if (p.includes("pedido")) return "pedidos";
+    if (p.includes("favorit") || p.includes("conta")) return "pedidos";
     return "inicio";
+  }
+
+  function addressLabel() {
+    const a = getAddress();
+    if (a && (a.street || a.address)) {
+      return `${a.street || a.address}${a.number || a.addressNumber ? ", " + (a.number || a.addressNumber) : ""}`;
+    }
+    const s = (catalog && catalog.settings) || {};
+    return s.address || "Escolher endereço";
   }
 
   function renderChrome() {
@@ -208,26 +330,35 @@ const G = (() => {
     const { count, subtotal } = cartTotals(cart.items);
     const days = s.minAdvanceDays || 1;
     const kind = pageKind();
-    const addr = s.address || "Escolher endereço";
     const header = document.getElementById("site-header");
     if (header) {
       header.innerHTML = `
-        <div class="ifood-top">
-          <a class="addr" href="/cardapio.html">
-            <small>Entregar em</small>
-            <strong>${addr} <span>▾</span></strong>
+        <div class="brand-bar">
+          <a class="brand-lockup" href="/">
+            <img src="${s.logo || "/logo.png"}" alt="" />
+            <span>
+              <strong>${esc(s.companyName || "Gostinho de Casa")}</strong>
+              <small>Marmitas sob encomenda</small>
+            </span>
+          </a>
+          <a class="icon-btn" href="/conta.html" aria-label="Conta">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="7" r="3"/><path d="M4 17c1.2-2.5 3.4-3.8 6-3.8S14.8 14.5 16 17"/></svg>
           </a>
           <a class="icon-btn" href="/carrinho.html" aria-label="Sacola">
             <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h15l-1.4 8H8L6 7z"/><path d="M6 7 5 4H2"/><circle cx="9" cy="18.5" r="1.2"/><circle cx="16.5" cy="18.5" r="1.2"/></svg>
             ${count ? `<span class="badge">${count}</span>` : ""}
           </a>
         </div>
-        <div class="header-search">
+        ${
+          kind === "inicio"
+            ? `<div class="header-search">
           <a class="search-pill" href="/cardapio.html">
             <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6"/><path d="m16 16-3.5-3.5"/></svg>
-            <span>Buscar no ${s.companyName || "Gostinho de Casa"}</span>
+            <span>Buscar marmitas, combos...</span>
           </a>
-        </div>`;
+        </div>`
+            : ""
+        }`;
     }
     const footer = document.getElementById("site-footer");
     if (footer) {
@@ -245,7 +376,7 @@ const G = (() => {
           </div>
           <div>
             <p><b>Contato</b></p>
-            <p><a class="muted" href="${waHref(s.whatsapp || "")}">WhatsApp</a></p>
+            <p><a class="muted" href="${waHref(s.whatsapp || "", "Olá! Quero pedir no Gostinho de Casa.")}">Falar pelo WhatsApp</a></p>
             ${s.instagram ? `<p><a class="muted" href="${s.instagram}" target="_blank" rel="noreferrer">Instagram</a></p>` : ""}
             <p><a class="muted" href="/admin/login.html" style="font-size:.75rem">Painel administrativo</a></p>
           </div>
@@ -260,7 +391,7 @@ const G = (() => {
       document.body.appendChild(tab);
     }
     const lastOrder = localStorage.getItem("gostinho-last-order") || "";
-    const pedidosHref = lastOrder ? "/pedido.html?id=" + encodeURIComponent(lastOrder) : "/pedido.html";
+    const pedidosHref = lastOrder ? "/pedido.html?id=" + encodeURIComponent(lastOrder) : "/pedidos.html";
     tab.innerHTML = `
       <a class="${kind === "inicio" ? "on" : ""}" href="/">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>
@@ -279,12 +410,15 @@ const G = (() => {
         Sacola
       </a>`;
     const wa = document.getElementById("wa-btn");
-    if (wa && s.whatsapp) wa.href = waHref(s.whatsapp);
+    if (wa && s.whatsapp) {
+      wa.href = waHref(s.whatsapp, "Olá! Quero pedir no Gostinho de Casa.");
+      wa.classList.add("show");
+    }
     const bar = document.getElementById("cartbar");
     if (bar) {
-      if (count > 0 && kind !== "sacola") {
+      if (count > 0 && kind !== "sacola" && kind !== "item") {
         bar.classList.add("show");
-        bar.innerHTML = `<span class="bag"><span class="count">${count}</span> ver sacola</span><span>${formatBRL(subtotal)}</span>`;
+        bar.innerHTML = `<span class="bag"><span class="count">${count}</span> Pedido</span><span>${formatBRL(subtotal)}</span>`;
       } else bar.classList.remove("show");
     }
   }
@@ -305,10 +439,14 @@ const G = (() => {
     }
     renderChrome();
     document.body.dataset.page = pageKind();
+    refreshUser().catch(() => {});
     try {
       if (pageFn) await pageFn(catalog);
     } catch (err) {
       console.error(err);
+    }
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
   }
 
@@ -322,6 +460,7 @@ const G = (() => {
     slotLabel,
     priceOf,
     qs,
+    esc,
     loadCart,
     saveCart,
     cartTotals,
@@ -331,8 +470,20 @@ const G = (() => {
     setNotes,
     loadCatalog,
     productCard,
+    productHref,
     bindAdds,
     boot,
     waHref,
+    toast,
+    apiPost,
+    apiGet,
+    getUser,
+    setUser,
+    getAddress,
+    setAddress,
+    refreshUser,
+    toggleFav,
+    isFav,
+    favIds,
   };
 })();

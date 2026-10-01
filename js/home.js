@@ -1,22 +1,29 @@
 G.boot((data) => {
   const s = (data && data.settings) || {};
+  const products = (data && data.products) || [];
   const cats = ((data && data.categories) || []).filter((c) => c.slug !== "sobremesas");
-  const featured = ((data && data.products) || []).filter((p) => p.featured).slice(0, 8);
-  const promos = (data && data.promotions) || [];
+  const featured = products.filter((p) => p.featured).slice(0, 8);
   const reviews = (data && data.reviews) || [];
   const zones = (data && data.zones) || [];
   const days = s.minAdvanceDays || 1;
   const $ = (id) => document.getElementById(id);
 
-  if ($("promos")) {
-    $("promos").innerHTML = promos
-      .map(
-        (p) => `<a class="banner" href="/cardapio.html">
-        ${p.image ? `<img src="${p.image}" alt="" />` : ""}
-        <div class="pad"><h3>${p.name}</h3><p>${p.description || ""}</p></div>
-      </a>`,
-      )
-      .join("");
+  if ($("cover")) {
+    $("cover").innerHTML = `
+      <img src="/marmitas/foto-12.jpg" alt="" />
+      <div class="pad">
+        <h1>Marmita feita hoje, para o seu amanhã.</h1>
+        <p>Encomende com 1 dia de antecedência e receba no almoço ou jantar.</p>
+        <a class="btn btn-leaf" href="/cardapio.html" style="background:#fff;color:var(--leaf-dark);width:fit-content">Ver o cardápio</a>
+      </div>`;
+  }
+  if ($("deliver")) {
+    $("deliver").innerHTML = `
+      <div>
+        <b>${G.esc(G.getAddress()?.street || s.address || "Escolher endereço")}</b>
+        <span>Entrega e retirada · ${s.hours || ""}</span>
+      </div>
+      <a class="btn btn-sm btn-white" href="/conta.html#enderecos">Alterar</a>`;
   }
   if ($("cats")) {
     $("cats").innerHTML = cats
@@ -27,15 +34,6 @@ G.boot((data) => {
       </a>`,
       )
       .join("");
-  }
-  if ($("store-card")) {
-    $("store-card").innerHTML = `
-    <img src="${s.logo || "/logo.png"}" alt="" />
-    <div>
-      <h3>${s.companyName || "Gostinho de Casa"}</h3>
-      <p>★ 4,8 · Marmitas · Encomenda ${days} ${days === 1 ? "dia" : "dias"}</p>
-      <p>Entrega a partir de ${zones.length ? G.formatBRL(Math.min.apply(null, zones.map((z) => z.price))) : "R$ 0"} · ${s.hours || ""}</p>
-    </div>`;
   }
   if ($("featured")) {
     $("featured").innerHTML = featured.map(G.productCard).join("");

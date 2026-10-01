@@ -160,6 +160,11 @@ table.data th { font-size: .75rem; color: var(--muted); text-transform: uppercas
 }
 .toast.show { display: block; }
 .low { color: var(--danger); font-weight: 600; }
+.bars { display: flex; gap: 8px; align-items: flex-end; min-height: 120px; overflow-x: auto; padding: 8px 0 28px; }
+.bar { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 36px; }
+.bar i { display: block; width: 18px; background: var(--leaf); border-radius: 8px 8px 2px 2px; }
+.bar span, .bar small { font-size: 10px; color: var(--muted); }
+.ticket select, .ticket button { margin-top: 8px; display: block; width: 100%; }
 
 .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgb(0 0 0 / .4); z-index: 90; }
 .sidebar-backdrop.open { display: block; }
