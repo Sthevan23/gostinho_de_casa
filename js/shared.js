@@ -129,33 +129,29 @@ const G = (() => {
     const price = priceOf(p);
     const needs = (p.sizes && p.sizes.length) || (p.extras && p.extras.length);
     const href = "/produto.html?id=" + encodeURIComponent(p.slug || p.id);
-    return `<article class="product-card card-shadow">
-      <a href="${href}" class="thumb">
-        <img src="${p.image || "/logo.png"}" alt="${p.name}" />
-        ${p.promotional ? '<span class="tag">Promoção</span>' : ""}
-      </a>
-      <div class="body">
+    const add = needs
+      ? `<a class="add" href="${href}" aria-label="Ver produto">+</a>`
+      : `<button class="add js-add" type="button" data-id="${p.id}" aria-label="Adicionar">+</button>`;
+    return `<article class="dish">
+      <a class="dish-info" href="${href}">
         <h3>${p.name}</h3>
         <p class="desc">${p.description || ""}</p>
         ${p.calories != null ? `<p class="kcal">${p.calories} kcal</p>` : ""}
-        <div class="row">
-          <div>
-            ${p.promotional && p.promoPrice != null ? `<p class="old">${formatBRL(p.price)}</p>` : ""}
-            <p class="price">${formatBRL(price)}</p>
-          </div>
-          ${
-            needs
-              ? `<a class="add" href="${href}" aria-label="Ver produto">+</a>`
-              : `<button class="add js-add" data-id="${p.id}" aria-label="Adicionar">+</button>`
-          }
-        </div>
+        <p class="price">${p.promotional && p.promoPrice != null ? `<span class="old">${formatBRL(p.price)}</span>` : ""}${formatBRL(price)}</p>
+      </a>
+      <div class="dish-media">
+        <a href="${href}"><img src="${p.image || "/logo.png"}" alt="" /></a>
+        ${p.promotional ? '<span class="tag">Promo</span>' : ""}
+        ${p.stock <= 0 ? "" : add}
       </div>
     </article>`;
   }
 
   function bindAdds(products) {
     document.querySelectorAll(".js-add").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         const p = products.find((x) => x.id === btn.dataset.id);
         if (!p || p.stock <= 0) return;
         addItem({
@@ -167,9 +163,18 @@ const G = (() => {
           extras: [],
         });
         btn.textContent = "✓";
-        setTimeout(() => (btn.textContent = "+"), 900);
+        setTimeout(() => (btn.textContent = "+"), 700);
       });
     });
+  }
+
+  function pageKind() {
+    const p = (location.pathname || "/").toLowerCase();
+    if (p.includes("produto")) return "item";
+    if (p.includes("cardapio")) return "cardapio";
+    if (p.includes("carrinho") || p.includes("checkout")) return "sacola";
+    if (p.includes("pedido")) return "pedidos";
+    return "inicio";
   }
 
   function renderChrome() {
@@ -179,48 +184,27 @@ const G = (() => {
     const cart = loadCart();
     const { count, subtotal } = cartTotals(cart.items);
     const days = s.minAdvanceDays || 1;
+    const kind = pageKind();
+    const addr = s.address || "Escolher endereço";
     const header = document.getElementById("site-header");
     if (header) {
       header.innerHTML = `
-        <p class="topbar">Pedidos por encomenda · peça com pelo menos ${days} ${days === 1 ? "dia" : "dias"} de antecedência</p>
-        <div class="nav">
-          <a class="brand" href="/">
-            <img src="${s.logo || "/logo.png"}" alt="" />
-            <div>
-              <strong>${s.companyName || "Gostinho de Casa"}</strong>
-              <small>marmitas artesanais</small>
-            </div>
+        <div class="ifood-top">
+          <a class="addr" href="/cardapio.html">
+            <small>Entregar em</small>
+            <strong>${addr} <span>▾</span></strong>
           </a>
-          <nav class="nav-links">
-            <a href="/">Início</a>
-            <a href="/cardapio.html">Cardápio</a>
-            <a href="/carrinho.html">Carrinho</a>
-          </nav>
-          <div style="display:flex;gap:.5rem;align-items:center">
-            <a class="icon-btn card-shadow" href="/carrinho.html" aria-label="Carrinho">
-              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6h15l-1.5 9h-12z"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/><path d="M6 6 5 3H2"/></svg>
-              ${count ? `<span class="badge">${count}</span>` : ""}
-            </a>
-            <button class="icon-btn card-shadow menu-toggle" type="button" aria-label="Menu">☰</button>
-          </div>
+          <a class="icon-btn" href="/carrinho.html" aria-label="Sacola">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h15l-1.4 8H8L6 7z"/><path d="M6 7 5 4H2"/><circle cx="9" cy="18.5" r="1.2"/><circle cx="16.5" cy="18.5" r="1.2"/></svg>
+            ${count ? `<span class="badge">${count}</span>` : ""}
+          </a>
         </div>
-        <div class="menu-overlay" id="menu">
-          <aside class="menu-panel" onclick="event.stopPropagation()">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
-              <b>Menu</b>
-              <button type="button" id="menu-close">✕</button>
-            </div>
-            <a href="/">Início</a>
-            <a href="/cardapio.html">Cardápio</a>
-            <a href="/carrinho.html">Carrinho</a>
-            <a href="/admin/login.html" class="muted">Área administrativa</a>
-            ${count ? `<a class="btn btn-leaf" href="/carrinho.html" style="margin-top:2rem">${count} itens · ${formatBRL(subtotal)}</a>` : ""}
-          </aside>
+        <div class="header-search">
+          <a class="search-pill" href="/cardapio.html">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6"/><path d="m16 16-3.5-3.5"/></svg>
+            <span>Buscar no ${s.companyName || "Gostinho de Casa"}</span>
+          </a>
         </div>`;
-      const overlay = header.querySelector("#menu");
-      header.querySelector(".menu-toggle")?.addEventListener("click", () => overlay.classList.add("open"));
-      header.querySelector("#menu-close")?.addEventListener("click", () => overlay.classList.remove("open"));
-      overlay?.addEventListener("click", () => overlay.classList.remove("open"));
     }
     const footer = document.getElementById("site-footer");
     if (footer) {
@@ -234,6 +218,7 @@ const G = (() => {
             <p><b>Funcionamento</b></p>
             <p class="muted">${s.hours || ""}</p>
             <p class="muted">${s.address || ""}</p>
+            <p class="muted">Encomenda com ${days} ${days === 1 ? "dia" : "dias"} de antecedência</p>
           </div>
           <div>
             <p><b>Contato</b></p>
@@ -242,19 +227,43 @@ const G = (() => {
             <p><a class="muted" href="/admin/login.html" style="font-size:.75rem">Painel administrativo</a></p>
           </div>
         </div>
-        <div class="copy">© ${new Date().getFullYear()} ${s.companyName || "Gostinho de Casa"}. Comida de verdade, feita com carinho.</div>`;
+        <div class="copy">© ${new Date().getFullYear()} ${s.companyName || "Gostinho de Casa"}</div>`;
     }
+    let tab = document.getElementById("tabbar");
+    if (!tab) {
+      tab = document.createElement("nav");
+      tab.id = "tabbar";
+      tab.className = "tabbar";
+      document.body.appendChild(tab);
+    }
+    const lastOrder = localStorage.getItem("gostinho-last-order") || "";
+    const pedidosHref = lastOrder ? "/pedido.html?id=" + encodeURIComponent(lastOrder) : "/pedido.html";
+    tab.innerHTML = `
+      <a class="${kind === "inicio" ? "on" : ""}" href="/">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>
+        Início
+      </a>
+      <a class="${kind === "cardapio" || kind === "item" ? "on" : ""}" href="/cardapio.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        Cardápio
+      </a>
+      <a class="${kind === "pedidos" ? "on" : ""}" href="${pedidosHref}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+        Pedidos
+      </a>
+      <a class="${kind === "sacola" ? "on" : ""}" href="/carrinho.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h15l-1.4 8H8L6 7z"/><path d="M6 7 5 4H2"/></svg>
+        Sacola
+      </a>`;
     const wa = document.getElementById("wa-btn");
     if (wa && s.whatsapp) wa.href = waHref(s.whatsapp);
     const bar = document.getElementById("cartbar");
     if (bar) {
-      if (count > 0) {
+      if (count > 0 && kind !== "sacola") {
         bar.classList.add("show");
-        bar.innerHTML = `<span>${count} ${count === 1 ? "item" : "itens"}</span><span>${formatBRL(subtotal)} · Ver carrinho</span>`;
+        bar.innerHTML = `<span class="bag"><span class="count">${count}</span> ver sacola</span><span>${formatBRL(subtotal)}</span>`;
       } else bar.classList.remove("show");
     }
-    if (s.primaryColor) document.documentElement.style.setProperty("--leaf", s.primaryColor);
-    if (s.backgroundColor) document.documentElement.style.setProperty("--cream", s.backgroundColor);
   }
 
   async function boot(pageFn) {
@@ -263,6 +272,7 @@ const G = (() => {
     });
     await loadCatalog();
     renderChrome();
+    document.body.dataset.page = pageKind();
     if (pageFn) await pageFn(catalog);
   }
 

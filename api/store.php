@@ -22,6 +22,22 @@ function gostinho_id(string $prefix = 'id'): string {
   return $prefix . '-' . bin2hex(random_bytes(6));
 }
 
+function gostinho_upsert(PDO $pdo, string $table, array $cols, array $values): void {
+  $fields = implode(',', $cols);
+  $placeholders = implode(',', array_fill(0, count($cols), '?'));
+  if (gostinho_is_sqlite($pdo)) {
+    $sql = "INSERT OR REPLACE INTO {$table} ({$fields}) VALUES ({$placeholders})";
+  } else {
+    $updates = [];
+    foreach ($cols as $c) {
+      if ($c === 'id') continue;
+      $updates[] = "{$c} = VALUES({$c})";
+    }
+    $sql = "INSERT INTO {$table} ({$fields}) VALUES ({$placeholders}) ON DUPLICATE KEY UPDATE " . implode(',', $updates);
+  }
+  $pdo->prepare($sql)->execute($values);
+}
+
 function gostinho_ensure_schema(PDO $pdo): void {
   static $done = false;
   if ($done) return;
@@ -29,121 +45,121 @@ function gostinho_ensure_schema(PDO $pdo): void {
 
   $sql = <<<SQL
 CREATE TABLE IF NOT EXISTS settings (
-  id TEXT PRIMARY KEY,
+  id VARCHAR(64) PRIMARY KEY,
   data TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS categories (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  slug TEXT NOT NULL,
-  description TEXT DEFAULT '',
-  image TEXT DEFAULT '',
+  id VARCHAR(64) PRIMARY KEY,
+  name VARCHAR(191) NOT NULL,
+  slug VARCHAR(191) NOT NULL,
+  description TEXT,
+  image VARCHAR(512) DEFAULT '',
   sort_order INTEGER DEFAULT 0,
   active INTEGER DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS extras (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  price REAL NOT NULL DEFAULT 0,
+  id VARCHAR(64) PRIMARY KEY,
+  name VARCHAR(191) NOT NULL,
+  price DOUBLE NOT NULL DEFAULT 0,
   active INTEGER DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS products (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  slug TEXT NOT NULL,
-  description TEXT DEFAULT '',
-  price REAL NOT NULL DEFAULT 0,
-  image TEXT DEFAULT '',
-  category_id TEXT NOT NULL,
-  ingredients TEXT DEFAULT '',
-  protein REAL,
-  calories REAL,
-  carbs REAL,
-  fats REAL,
+  id VARCHAR(64) PRIMARY KEY,
+  name VARCHAR(191) NOT NULL,
+  slug VARCHAR(191) NOT NULL,
+  description TEXT,
+  price DOUBLE NOT NULL DEFAULT 0,
+  image VARCHAR(512) DEFAULT '',
+  category_id VARCHAR(64) NOT NULL,
+  ingredients TEXT,
+  protein DOUBLE,
+  calories DOUBLE,
+  carbs DOUBLE,
+  fats DOUBLE,
   weight INTEGER,
   featured INTEGER DEFAULT 0,
   promotional INTEGER DEFAULT 0,
-  promo_price REAL,
+  promo_price DOUBLE,
   active INTEGER DEFAULT 1,
   stock INTEGER DEFAULT 40,
-  sizes TEXT DEFAULT '[]',
-  extra_ids TEXT DEFAULT '[]'
+  sizes TEXT,
+  extra_ids TEXT
 );
 CREATE TABLE IF NOT EXISTS delivery_zones (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  price REAL NOT NULL DEFAULT 0,
+  id VARCHAR(64) PRIMARY KEY,
+  name VARCHAR(191) NOT NULL,
+  price DOUBLE NOT NULL DEFAULT 0,
   active INTEGER DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS coupons (
-  id TEXT PRIMARY KEY,
-  code TEXT NOT NULL,
-  type TEXT NOT NULL,
-  value REAL NOT NULL DEFAULT 0,
-  min_order REAL DEFAULT 0,
+  id VARCHAR(64) PRIMARY KEY,
+  code VARCHAR(64) NOT NULL,
+  type VARCHAR(32) NOT NULL,
+  value DOUBLE NOT NULL DEFAULT 0,
+  min_order DOUBLE DEFAULT 0,
   max_uses INTEGER,
   used_count INTEGER DEFAULT 0,
-  expires_at TEXT,
+  expires_at VARCHAR(32),
   active INTEGER DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS promotions (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  description TEXT DEFAULT '',
-  type TEXT DEFAULT '',
-  value REAL DEFAULT 0,
-  image TEXT DEFAULT '',
+  id VARCHAR(64) PRIMARY KEY,
+  name VARCHAR(191) NOT NULL,
+  description TEXT,
+  type VARCHAR(32) DEFAULT '',
+  value DOUBLE DEFAULT 0,
+  image VARCHAR(512) DEFAULT '',
   active INTEGER DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS reviews (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
+  id VARCHAR(64) PRIMARY KEY,
+  name VARCHAR(191) NOT NULL,
   rating INTEGER NOT NULL,
-  comment TEXT DEFAULT '',
+  comment TEXT,
   active INTEGER DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS orders (
-  id TEXT PRIMARY KEY,
+  id VARCHAR(64) PRIMARY KEY,
   number INTEGER NOT NULL,
-  customer_name TEXT NOT NULL,
-  phone TEXT NOT NULL,
-  address TEXT DEFAULT '',
-  address_number TEXT DEFAULT '',
-  complement TEXT DEFAULT '',
-  neighborhood TEXT DEFAULT '',
-  delivery_type TEXT NOT NULL,
-  delivery_fee REAL DEFAULT 0,
-  payment_method TEXT NOT NULL,
-  change_for REAL,
-  notes TEXT DEFAULT '',
-  coupon_code TEXT DEFAULT '',
-  discount REAL DEFAULT 0,
-  subtotal REAL NOT NULL,
-  total REAL NOT NULL,
-  status TEXT DEFAULT 'NEW',
+  customer_name VARCHAR(191) NOT NULL,
+  phone VARCHAR(32) NOT NULL,
+  address TEXT,
+  address_number VARCHAR(32) DEFAULT '',
+  complement VARCHAR(191) DEFAULT '',
+  neighborhood VARCHAR(191) DEFAULT '',
+  delivery_type VARCHAR(32) NOT NULL,
+  delivery_fee DOUBLE DEFAULT 0,
+  payment_method VARCHAR(32) NOT NULL,
+  change_for DOUBLE,
+  notes TEXT,
+  coupon_code VARCHAR(64) DEFAULT '',
+  discount DOUBLE DEFAULT 0,
+  subtotal DOUBLE NOT NULL,
+  total DOUBLE NOT NULL,
+  status VARCHAR(32) DEFAULT 'NEW',
   printed INTEGER DEFAULT 0,
-  scheduled_date TEXT NOT NULL,
-  scheduled_slot TEXT DEFAULT 'ALMOCO',
-  created_at TEXT NOT NULL
+  scheduled_date VARCHAR(32) NOT NULL,
+  scheduled_slot VARCHAR(32) DEFAULT 'ALMOCO',
+  created_at VARCHAR(32) NOT NULL
 );
 CREATE TABLE IF NOT EXISTS order_items (
-  id TEXT PRIMARY KEY,
-  order_id TEXT NOT NULL,
-  product_id TEXT,
-  product_name TEXT NOT NULL,
+  id VARCHAR(64) PRIMARY KEY,
+  order_id VARCHAR(64) NOT NULL,
+  product_id VARCHAR(64),
+  product_name VARCHAR(191) NOT NULL,
   quantity INTEGER NOT NULL,
-  unit_price REAL NOT NULL,
-  size_name TEXT DEFAULT '',
-  extras TEXT DEFAULT '',
-  notes TEXT DEFAULT ''
+  unit_price DOUBLE NOT NULL,
+  size_name VARCHAR(64) DEFAULT '',
+  extras TEXT,
+  notes TEXT
 );
 CREATE TABLE IF NOT EXISTS finance (
-  id TEXT PRIMARY KEY,
-  type TEXT NOT NULL,
-  amount REAL NOT NULL DEFAULT 0,
-  description TEXT DEFAULT '',
-  date TEXT NOT NULL,
-  order_id TEXT
+  id VARCHAR(64) PRIMARY KEY,
+  type VARCHAR(32) NOT NULL,
+  amount DOUBLE NOT NULL DEFAULT 0,
+  description TEXT,
+  date VARCHAR(32) NOT NULL,
+  order_id VARCHAR(64)
 );
 SQL;
 
@@ -200,92 +216,90 @@ function gostinho_get_auth(PDO $pdo): array {
 
 function gostinho_save_category(PDO $pdo, array $c): void {
   $id = $c['id'] ?? gostinho_id('cat');
-  $pdo->prepare('INSERT OR REPLACE INTO categories (id,name,slug,description,image,sort_order,active) VALUES (?,?,?,?,?,?,?)')
-    ->execute([
-      $id,
-      $c['name'] ?? '',
-      $c['slug'] ?? '',
-      $c['description'] ?? '',
-      $c['image'] ?? '',
-      (int) ($c['sortOrder'] ?? 0),
-      gostinho_bool($c['active'] ?? true),
-    ]);
+  gostinho_upsert($pdo, 'categories', ['id','name','slug','description','image','sort_order','active'], [
+    $id,
+    $c['name'] ?? '',
+    $c['slug'] ?? '',
+    $c['description'] ?? '',
+    $c['image'] ?? '',
+    (int) ($c['sortOrder'] ?? 0),
+    gostinho_bool($c['active'] ?? true),
+  ]);
 }
 
 function gostinho_save_extra(PDO $pdo, array $e): void {
   $id = $e['id'] ?? gostinho_id('ex');
-  $pdo->prepare('INSERT OR REPLACE INTO extras (id,name,price,active) VALUES (?,?,?,?)')
-    ->execute([$id, $e['name'] ?? '', (float) ($e['price'] ?? 0), gostinho_bool($e['active'] ?? true)]);
+  gostinho_upsert($pdo, 'extras', ['id','name','price','active'], [
+    $id, $e['name'] ?? '', (float) ($e['price'] ?? 0), gostinho_bool($e['active'] ?? true),
+  ]);
 }
 
 function gostinho_save_product(PDO $pdo, array $p): void {
   $id = $p['id'] ?? gostinho_id('p');
-  $pdo->prepare('INSERT OR REPLACE INTO products (id,name,slug,description,price,image,category_id,ingredients,protein,calories,carbs,fats,weight,featured,promotional,promo_price,active,stock,sizes,extra_ids) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-    ->execute([
-      $id,
-      $p['name'] ?? '',
-      $p['slug'] ?? '',
-      $p['description'] ?? '',
-      (float) ($p['price'] ?? 0),
-      $p['image'] ?? '',
-      $p['categoryId'] ?? '',
-      $p['ingredients'] ?? '',
-      $p['protein'] ?? null,
-      $p['calories'] ?? null,
-      $p['carbs'] ?? null,
-      $p['fats'] ?? null,
-      $p['weight'] ?? null,
-      gostinho_bool($p['featured'] ?? false),
-      gostinho_bool($p['promotional'] ?? false),
-      $p['promoPrice'] ?? null,
-      gostinho_bool($p['active'] ?? true),
-      (int) ($p['stock'] ?? 40),
-      gostinho_json_enc($p['sizes'] ?? []),
-      gostinho_json_enc($p['extraIds'] ?? []),
-    ]);
-  return;
+  gostinho_upsert($pdo, 'products', ['id','name','slug','description','price','image','category_id','ingredients','protein','calories','carbs','fats','weight','featured','promotional','promo_price','active','stock','sizes','extra_ids'], [
+    $id,
+    $p['name'] ?? '',
+    $p['slug'] ?? '',
+    $p['description'] ?? '',
+    (float) ($p['price'] ?? 0),
+    $p['image'] ?? '',
+    $p['categoryId'] ?? '',
+    $p['ingredients'] ?? '',
+    $p['protein'] ?? null,
+    $p['calories'] ?? null,
+    $p['carbs'] ?? null,
+    $p['fats'] ?? null,
+    $p['weight'] ?? null,
+    gostinho_bool($p['featured'] ?? false),
+    gostinho_bool($p['promotional'] ?? false),
+    $p['promoPrice'] ?? null,
+    gostinho_bool($p['active'] ?? true),
+    (int) ($p['stock'] ?? 40),
+    gostinho_json_enc($p['sizes'] ?? []),
+    gostinho_json_enc($p['extraIds'] ?? []),
+  ]);
 }
 
 function gostinho_save_zone(PDO $pdo, array $z): void {
   $id = $z['id'] ?? gostinho_id('z');
-  $pdo->prepare('INSERT OR REPLACE INTO delivery_zones (id,name,price,active) VALUES (?,?,?,?)')
-    ->execute([$id, $z['name'] ?? '', (float) ($z['price'] ?? 0), gostinho_bool($z['active'] ?? true)]);
+  gostinho_upsert($pdo, 'delivery_zones', ['id','name','price','active'], [
+    $id, $z['name'] ?? '', (float) ($z['price'] ?? 0), gostinho_bool($z['active'] ?? true),
+  ]);
 }
 
 function gostinho_save_coupon(PDO $pdo, array $c): void {
   $id = $c['id'] ?? gostinho_id('c');
-  $pdo->prepare('INSERT OR REPLACE INTO coupons (id,code,type,value,min_order,max_uses,used_count,expires_at,active) VALUES (?,?,?,?,?,?,?,?,?)')
-    ->execute([
-      $id,
-      strtoupper(trim((string) ($c['code'] ?? ''))),
-      $c['type'] ?? 'percent',
-      (float) ($c['value'] ?? 0),
-      (float) ($c['minOrder'] ?? 0),
-      $c['maxUses'] ?? null,
-      (int) ($c['usedCount'] ?? 0),
-      $c['expiresAt'] ?? null,
-      gostinho_bool($c['active'] ?? true),
-    ]);
+  gostinho_upsert($pdo, 'coupons', ['id','code','type','value','min_order','max_uses','used_count','expires_at','active'], [
+    $id,
+    strtoupper(trim((string) ($c['code'] ?? ''))),
+    $c['type'] ?? 'percent',
+    (float) ($c['value'] ?? 0),
+    (float) ($c['minOrder'] ?? 0),
+    $c['maxUses'] ?? null,
+    (int) ($c['usedCount'] ?? 0),
+    $c['expiresAt'] ?? null,
+    gostinho_bool($c['active'] ?? true),
+  ]);
 }
 
 function gostinho_save_promotion(PDO $pdo, array $p): void {
   $id = $p['id'] ?? gostinho_id('promo');
-  $pdo->prepare('INSERT OR REPLACE INTO promotions (id,name,description,type,value,image,active) VALUES (?,?,?,?,?,?,?)')
-    ->execute([
-      $id,
-      $p['name'] ?? '',
-      $p['description'] ?? '',
-      $p['type'] ?? '',
-      (float) ($p['value'] ?? 0),
-      $p['image'] ?? '',
-      gostinho_bool($p['active'] ?? true),
-    ]);
+  gostinho_upsert($pdo, 'promotions', ['id','name','description','type','value','image','active'], [
+    $id,
+    $p['name'] ?? '',
+    $p['description'] ?? '',
+    $p['type'] ?? '',
+    (float) ($p['value'] ?? 0),
+    $p['image'] ?? '',
+    gostinho_bool($p['active'] ?? true),
+  ]);
 }
 
 function gostinho_save_review(PDO $pdo, array $r): void {
   $id = $r['id'] ?? gostinho_id('r');
-  $pdo->prepare('INSERT OR REPLACE INTO reviews (id,name,rating,comment,active) VALUES (?,?,?,?,?)')
-    ->execute([$id, $r['name'] ?? '', (int) ($r['rating'] ?? 5), $r['comment'] ?? '', gostinho_bool($r['active'] ?? true)]);
+  gostinho_upsert($pdo, 'reviews', ['id','name','rating','comment','active'], [
+    $id, $r['name'] ?? '', (int) ($r['rating'] ?? 5), $r['comment'] ?? '', gostinho_bool($r['active'] ?? true),
+  ]);
 }
 
 function gostinho_map_product(array $row, array $extrasById, array $catsById): array {
@@ -451,15 +465,14 @@ function gostinho_load_finance(PDO $pdo): array {
 
 function gostinho_save_finance(PDO $pdo, array $f): void {
   $id = $f['id'] ?? gostinho_id('fin');
-  $pdo->prepare('INSERT OR REPLACE INTO finance (id,type,amount,description,date,order_id) VALUES (?,?,?,?,?,?)')
-    ->execute([
-      $id,
-      ($f['type'] ?? 'expense') === 'income' ? 'income' : 'expense',
-      (float) ($f['amount'] ?? 0),
-      $f['description'] ?? '',
-      substr((string) ($f['date'] ?? gostinho_today_ymd()), 0, 10),
-      $f['orderId'] ?? null,
-    ]);
+  gostinho_upsert($pdo, 'finance', ['id','type','amount','description','date','order_id'], [
+    $id,
+    ($f['type'] ?? 'expense') === 'income' ? 'income' : 'expense',
+    (float) ($f['amount'] ?? 0),
+    $f['description'] ?? '',
+    substr((string) ($f['date'] ?? gostinho_today_ymd()), 0, 10),
+    $f['orderId'] ?? null,
+  ]);
 }
 
 function gostinho_load_orders(PDO $pdo): array {

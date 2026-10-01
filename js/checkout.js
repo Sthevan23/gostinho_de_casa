@@ -97,6 +97,7 @@ G.boot((data) => {
       return render();
     }
     G.clearCart();
+    if (out.order?.id) localStorage.setItem("gostinho-last-order", out.order.id);
     if (out.whatsappUrl) window.open(out.whatsappUrl, "_blank");
     location.href = "/pedido.html?id=" + encodeURIComponent(out.order.id);
   }
@@ -105,7 +106,7 @@ G.boot((data) => {
     document.getElementById("page").innerHTML = `
       <form class="checkout" id="checkout">
         <div>
-          <h1>Finalizar pedido</h1>
+          <h1>Revisar e pagar</h1>
           <section class="card card-shadow" style="margin-top:1rem">
             <h2>Seus dados</h2>
             <div class="grid-2" style="margin-top:1rem">
@@ -176,7 +177,7 @@ G.boot((data) => {
             <div class="line"><b>Total</b><b>${G.formatBRL(total())}</b></div>
           </div>
           ${error ? `<p class="err">${error}</p>` : ""}
-          <button class="btn btn-leaf" style="width:100%;margin-top:1.25rem" ${sending ? "disabled" : ""}>${sending ? "Enviando..." : "Finalizar pedido"}</button>
+          <button class="btn btn-leaf" style="width:100%;margin-top:1.25rem" ${sending ? "disabled" : ""}>${sending ? "Enviando..." : "Fazer pedido · " + G.formatBRL(total())}</button>
           <p class="muted" style="text-align:center;margin-top:.75rem;font-size:.75rem">Encomenda com antecedência. Ao finalizar, o pedido vai para o WhatsApp.</p>
         </aside>
       </form>`;

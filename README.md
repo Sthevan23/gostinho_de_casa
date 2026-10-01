@@ -21,13 +21,12 @@ Site + painel para Hostinger (HTML/CSS/JS + PHP + SQLite ou MySQL). **Não usa N
 
 No painel dá para gerenciar pedidos (kanban), cardápio, estoque, categorias, promoções, cupons, bairros, financeiro e dados da loja.
 
-### MySQL (opcional)
+### MySQL (recomendado na Hostinger)
 
-Se quiser o mesmo modelo da Aurora:
-
-1. Copie `api/config.local.example.php` para `api/config.local.php`
-2. Coloque `driver => mysql` e os dados do hPanel
-3. O PHP cria as tabelas na primeira chamada
+1. hPanel → **Bancos de Dados MySQL** → criar banco + usuário (anote name, user, senha)
+2. phpMyAdmin → clique no banco → **Importar** → arquivo `gostinho.sql` da raiz do projeto
+3. Copie `api/config.local.example.php` para `api/config.local.php` no servidor
+4. Preencha `driver => mysql`, `name`, `user` e `pass` com os dados do hPanel
 
 ## Rodar no PC
 

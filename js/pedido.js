@@ -2,7 +2,15 @@ G.boot(async () => {
   const id = G.qs("id");
   const el = document.getElementById("page");
   if (!id) {
-    el.innerHTML = '<p class="muted">Pedido não encontrado.</p>';
+    const last = localStorage.getItem("gostinho-last-order");
+    if (last) {
+      location.replace("/pedido.html?id=" + encodeURIComponent(last));
+      return;
+    }
+    el.innerHTML = `<div class="empty-bag">
+      <p class="muted">Você ainda não fez um pedido</p>
+      <a class="btn btn-leaf" href="/cardapio.html">Ver cardápio</a>
+    </div>`;
     return;
   }
   try {

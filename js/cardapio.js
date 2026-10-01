@@ -1,9 +1,33 @@
 G.boot((data) => {
+  const s = data.settings || {};
   const products = data.products || [];
-  const cats = data.categories || [];
+  const cats = (data.categories || []).filter((c) => c.slug !== "sobremesas");
   const params = new URLSearchParams(location.search);
   let categoria = params.get("categoria") || "";
-  let q = "";
+  let q = params.get("q") || "";
+  const days = s.minAdvanceDays || 1;
+  const zones = data.zones || [];
+  const minFee = zones.length ? Math.min(...zones.map((z) => z.price)) : 0;
+
+  document.getElementById("store-hero").innerHTML = `
+    <div class="store-cover"><img src="/marmitas/foto-26.jpg" alt="" /></div>
+    <div class="store-info">
+      <img class="logo" src="${s.logo || "/logo.png"}" alt="" />
+      <h1>${s.companyName || "Gostinho de Casa"}</h1>
+      <div class="store-meta">
+        <span class="star">★ 4,8</span>
+        <span>Marmitas</span>
+        <span>Pedido em ${days} ${days === 1 ? "dia" : "dias"}</span>
+        <span>Entrega <b>${G.formatBRL(minFee)}</b></span>
+      </div>
+    </div>`;
+
+  const input = document.getElementById("q");
+  if (q) input.value = q;
+
+  function catSlug(p) {
+    return p.category?.slug || cats.find((c) => c.id === p.categoryId)?.slug || "";
+  }
 
   function filtered() {
     const nq = q
@@ -11,7 +35,7 @@ G.boot((data) => {
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase();
     return products.filter((p) => {
-      if (categoria && (p.category?.slug || "") !== categoria) return false;
+      if (categoria && catSlug(p) !== categoria) return false;
       if (!nq) return true;
       const blob = `${p.name} ${p.description} ${p.ingredients || ""}`
         .normalize("NFD")
@@ -23,9 +47,9 @@ G.boot((data) => {
 
   function render() {
     document.getElementById("filters").innerHTML =
-      `<button class="filter ${!categoria ? "on" : ""}" data-c="">Tudo</button>` +
+      `<button class="filter ${!categoria ? "on" : ""}" data-c="">Cardápio</button>` +
       cats
-        .map((c) => `<button class="filter ${categoria === c.slug ? "on" : ""}" data-c="${c.slug}">${c.name}</button>`)
+        .map((c) => `<button class="filter ${categoria === c.slug ? "on" : ""}" data-c="${c.slug}">${c.name.replace("Marmitas ", "")}</button>`)
         .join("");
     document.querySelectorAll(".filter").forEach((b) => {
       b.onclick = () => {
@@ -35,16 +59,34 @@ G.boot((data) => {
         else url.searchParams.delete("categoria");
         history.replaceState({}, "", url);
         render();
+        if (categoria) document.getElementById("sec-" + categoria)?.scrollIntoView({ behavior: "smooth", block: "start" });
       };
     });
+
     const list = filtered();
-    document.getElementById("list").innerHTML = list.length
-      ? list.map(G.productCard).join("")
-      : '<p class="muted">Nenhum prato encontrado.</p>';
+    const box = document.getElementById("list");
+    if (!list.length) {
+      box.innerHTML = '<p class="muted" style="padding:2rem 0;text-align:center">Nenhum item encontrado.</p>';
+      return;
+    }
+    if (q || categoria) {
+      box.innerHTML = `<div class="dish-list">${list.map(G.productCard).join("")}</div>`;
+    } else {
+      box.innerHTML = cats
+        .map((c) => {
+          const items = list.filter((p) => catSlug(p) === c.slug);
+          if (!items.length) return "";
+          return `<section class="menu-sec" id="sec-${c.slug}">
+            <h2>${c.name}</h2>
+            <div class="dish-list">${items.map(G.productCard).join("")}</div>
+          </section>`;
+        })
+        .join("");
+    }
     G.bindAdds(list);
   }
 
-  document.getElementById("q").addEventListener("input", (e) => {
+  input.addEventListener("input", (e) => {
     q = e.target.value;
     render();
   });
